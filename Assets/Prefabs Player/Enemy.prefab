@@ -159,9 +159,9 @@ MonoBehaviour:
   pingPong: 1
   patrolSpeedMetersPerSecond: 0.8
   waitAtPointSeconds: 0.5
-  sightRangeMeters: 2.5
-  sightAngleDegrees: 120
-  closeAwarenessMeters: 0.35
+  sightRangeMeters: 4.25
+  sightAngleDegrees: 147
+  closeAwarenessMeters: 0.95
   eyeHeightMeters: 0.3
   targetHeightMeters: 0
   sightBlockers:
@@ -169,10 +169,11 @@ MonoBehaviour:
     m_Bits: 0
   chaseSpeedMetersPerSecond: 1.8
   loseSightSeconds: 3
-  maxChaseDistanceMeters: 5
+  maxChaseDistanceMeters: 21
   maxChaseSeconds: 8
   giveUpCooldownSeconds: 2
   stopDistanceMeters: 0.1
+  giveUpWhenBlockedSeconds: 1.5
   turnSpeedDegreesPerSecond: 540
   gravity: 20
   groundMask:
@@ -181,11 +182,27 @@ MonoBehaviour:
   avoidLedges: 1
   ledgeCheckForwardMeters: 0.2
   ledgeCheckDepthMeters: 0.3
-  enemyMask:
+  avoidHazards: 1
+  hazardMask:
     serializedVersion: 2
-    m_Bits: 128
+    m_Bits: 4294967295
+  fallDeathDepthMeters: 20
+  steerIntervalSeconds: 0.1
+  steerResponsiveness: 10
+  wallCheckDistanceMeters: 0.12
+  directionStickiness: 0.15
+  crowdAwarenessRadiusMeters: 0.8
+  crowdAvoidanceWeight: 0.8
   separationRadiusMeters: 0.4
   separationStrengthMetersPerSecond: 0.6
+  spreadAroundPlayer: 1
+  fanRadiusMeters: 0.9
+  fanSpreadAngleDegrees: 70
+  fanMaxShiftDegrees: 50
+  stuckCheckSeconds: 0.5
+  stuckProgressFraction: 0.25
+  unstickSeconds: 0.5
+  giveUpAfterStuckCount: 3
   contactDamage: 1
   damageCooldownSeconds: 1
   contactPaddingMeters: 0.08

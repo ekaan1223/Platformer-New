@@ -31,6 +31,9 @@ public class BossHealth : MonoBehaviour, IDamageable
     public bool IsInvulnerable { get; set; }
     public float DamageFloorFraction { get; set; }
 
+    /// <summary>ON during the finale: ANY hit (sword or stomp) takes all the boss's health.</summary>
+    public bool OneHitKill { get; set; }
+
     private void Awake() => currentHealth = maxHealth;
 
     public void TakeDamage(float amount, Vector3 hitDirection)
@@ -38,7 +41,7 @@ public class BossHealth : MonoBehaviour, IDamageable
         if (IsInvulnerable || amount <= 0f) return;
 
         float floor = maxHealth * DamageFloorFraction;
-        float newHealth = Mathf.Max(currentHealth - amount, floor);
+        float newHealth = OneHitKill ? 0f : Mathf.Max(currentHealth - amount, floor);
         if (Mathf.Approximately(newHealth, currentHealth)) return;
 
         SetHealth(newHealth);
