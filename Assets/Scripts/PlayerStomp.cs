@@ -70,6 +70,7 @@ public class PlayerStomp : MonoBehaviour
 
         Stompable stompable = hit.collider.GetComponentInParent<Stompable>();
         if (stompable == null) return;                 // only Stompable things can be stomped
+        if (!stompable.isActiveAndEnabled) return;     // a switched-off Stompable (the boss, before its finale) can't be stomped
 
         lastStompTime = Time.time;
 
