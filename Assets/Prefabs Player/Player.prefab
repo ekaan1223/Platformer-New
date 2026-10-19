@@ -176,6 +176,7 @@ MonoBehaviour:
   maxSpeedMetersPerSecond: 5
   groundAcceleration: 18
   groundDeceleration: 24
+  sprintSpeedMetersPerSecond: 4
   airAcceleration: 10
   airDeceleration: 3
   facingMode: 1
@@ -380,6 +381,17 @@ MonoBehaviour:
       m_Action: Attack
       m_Flags: 0
     m_Flags: 0
+  sprintAction:
+    m_Name: Sprint
+    m_Type: 0
+    m_ExpectedControlType: 
+    m_Id: 7fd3a295-4c70-40a7-9273-b09478c84d68
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings: []
+    m_Flags: 0
+  holdToSprintSeconds: 0.25
+  dashOnTapRelease: 1
 --- !u!114 &5739350576458078603
 MonoBehaviour:
   m_ObjectHideFlags: 0
