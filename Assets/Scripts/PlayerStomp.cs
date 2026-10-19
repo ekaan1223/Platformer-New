@@ -5,13 +5,13 @@ using UnityEngine.Events;
 /// Goomba stomp: land on top of a Stompable enemy while falling and you damage it and get a small
 /// bounce. The bounce is short enough that you can chain stomps from enemy to enemy without touching
 /// the ground; the number of stomps in a row is the combo. Touching the ground ends the combo.
-/// Like the other abilities it never moves the character itself: it just sets motor.VerticalVelocity.
-/// Put it on the Player (same object as PlayerMotor).
+/// It never moves the character itself: it asks PlayerController to Launch.
+/// Put it on the Player (same object as PlayerController).
 /// </summary>
 public class PlayerStomp : MonoBehaviour
 {
     [Header("References")]
-    [SerializeField] private PlayerMotor motor;
+    [SerializeField] private PlayerController player;
 
     [Header("Stomp Bounce")]
     [Tooltip("How high the hop after a stomp goes, in meters. Your normal jump height is 0.8.")]
@@ -41,23 +41,23 @@ public class PlayerStomp : MonoBehaviour
 
     private void Awake()
     {
-        if (motor == null) TryGetComponent(out motor);
+        if (player == null) TryGetComponent(out player);
 
-        if (motor == null)
+        if (player == null)
         {
-            Debug.LogError($"{nameof(PlayerStomp)} needs a {nameof(PlayerMotor)}.", this);
+            Debug.LogError($"{nameof(PlayerStomp)} needs a {nameof(PlayerController)}.", this);
             enabled = false;
         }
     }
 
     private void OnEnable()
     {
-        if (motor != null) motor.Landed += EndCombo;
+        if (player != null) player.Landed += EndCombo;
     }
 
     private void OnDisable()
     {
-        if (motor != null) motor.Landed -= EndCombo;
+        if (player != null) player.Landed -= EndCombo;
     }
 
     // Unity calls this on the CharacterController's object every time it bumps into something
@@ -66,7 +66,7 @@ public class PlayerStomp : MonoBehaviour
     {
         if (Time.time - lastStompTime < stompCooldownSeconds) return;
         if (hit.normal.y < minTopNormalY) return;      // we hit its side, not its top
-        if (motor.VerticalVelocity > 0f) return;       // still going up, can't stomp
+        if (player.VerticalVelocity > 0f) return;      // still going up, can't stomp
 
         Stompable stompable = hit.collider.GetComponentInParent<Stompable>();
         if (stompable == null) return;                 // only Stompable things can be stomped
@@ -86,10 +86,7 @@ public class PlayerStomp : MonoBehaviour
     private void Bounce()
     {
         float bonus = Mathf.Min(ComboCount * bonusHeightPerComboMeters, maxBonusHeightMeters);
-        float height = bounceHeightMeters + bonus;
-
-        // Same maths as PlayerJump: v = sqrt(2 * g * h) is "how fast to leave the ground to reach height h".
-        motor.VerticalVelocity = Mathf.Sqrt(2f * motor.Gravity * height);
+        player.Launch(bounceHeightMeters + bonus);
     }
 
     private void EndCombo()

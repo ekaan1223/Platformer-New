@@ -193,7 +193,7 @@ public class BossController : MonoBehaviour
 
         if (player == null)
         {
-            // First by the 'Player' tag; if that fails, by the object that has PlayerMotor.
+            // First by the 'Player' tag; if that fails, by the object that has PlayerController.
             GameObject tagged = GameObject.FindGameObjectWithTag("Player");
             if (tagged != null)
             {
@@ -201,8 +201,8 @@ public class BossController : MonoBehaviour
             }
             else
             {
-                PlayerMotor motor = FindFirstObjectByType<PlayerMotor>();
-                if (motor != null) player = motor.transform;
+                PlayerController found = FindFirstObjectByType<PlayerController>();
+                if (found != null) player = found.transform;
                 else Debug.LogWarning($"{name}: can't find the player. Is it in this scene (in the Hierarchy) and active?", this);
             }
         }
@@ -558,33 +558,21 @@ public class BossController : MonoBehaviour
 
     // ---- Moving the player ---------------------------------------------
 
-    /// <summary>The object that actually moves (the one with PlayerMotor), in case the "Player" tag is on a child.</summary>
+    /// <summary>The object that actually moves (the one with PlayerController), in case the "Player" tag is on a child.</summary>
     private Transform PlayerRoot()
     {
-        PlayerMotor motor = player.GetComponentInParent<PlayerMotor>();
-        return motor != null ? motor.transform : player;
+        PlayerController playerController = player.GetComponentInParent<PlayerController>();
+        return playerController != null ? playerController.transform : player;
     }
 
-    /// <summary>
-    /// Instantly moves the player. A CharacterController fights direct position changes, so it is switched off
-    /// for a moment, and the motor's leftover speed is cleared so the player doesn't keep sliding or falling.
-    /// </summary>
+    /// <summary>Instantly moves the player (PlayerController also clears its leftover speed).</summary>
     private void TeleportPlayer(Vector3 position, Quaternion rotation)
     {
         if (player == null) return;
 
-        Transform root = PlayerRoot();
-        CharacterController playerController = root.GetComponent<CharacterController>();
-
-        if (playerController != null) playerController.enabled = false;
-        root.SetPositionAndRotation(position, rotation);
-        if (playerController != null) playerController.enabled = true;
-
-        if (root.TryGetComponent(out PlayerMotor motor))
-        {
-            motor.HorizontalVelocity = Vector3.zero;
-            motor.VerticalVelocity = 0f;
-        }
+        PlayerController playerController = player.GetComponentInParent<PlayerController>();
+        if (playerController != null) playerController.Teleport(position, rotation);
+        else player.SetPositionAndRotation(position, rotation);
     }
 
     // ---- Defeat --------------------------------------------------------

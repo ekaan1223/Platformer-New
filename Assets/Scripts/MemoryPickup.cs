@@ -6,7 +6,7 @@ using UnityEngine.Events;
 /// hide it, and remove it. WHAT collecting means is left to the two child scripts, MemorySmall and
 /// MemoryMain. That is "inheritance": one parent class, two children that fill in the blanks.
 /// Needs a trigger collider (a SphereCollider is added automatically and set to Is Trigger).
-/// The player is recognised by having a PlayerMotor, so no tag is needed.
+/// The player is recognised by having a PlayerController, so no tag is needed.
 /// </summary>
 [RequireComponent(typeof(SphereCollider))]
 public abstract class MemoryPickup : MonoBehaviour
@@ -59,7 +59,7 @@ public abstract class MemoryPickup : MonoBehaviour
         TryCollect();
     }
 
-    private static bool IsPlayer(Collider other) => other.GetComponentInParent<PlayerMotor>() != null;
+    private static bool IsPlayer(Collider other) => other.GetComponentInParent<PlayerController>() != null;
 
     private bool TryCollect()
     {

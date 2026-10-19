@@ -5,7 +5,7 @@ using UnityEngine.Events;
 /// <summary>
 /// Goomba-style enemy: patrols a path, chases the player when it SEES them (view cone + walls block
 /// the view), gives up after a while, and hurts the player on touch through IDamageable.
-/// Moves itself with a CharacterController, the same way PlayerMotor moves the player.
+/// Moves itself with a CharacterController, the same way PlayerController moves the player.
 ///
 /// HOW IT MOVES (the "smart" part):
 ///  Every 0.1 s the enemy looks in 12 directions around the way it WANTS to go and scores each one:
@@ -250,14 +250,14 @@ public class EnemyAI : MonoBehaviour
         else if (!TryFindPlayer())
         {
             Debug.LogWarning($"{name}: can't find the player yet (looked for the 'Player' tag, then for an object with " +
-                             "PlayerMotor). It only patrols for now and keeps looking. Is the player IN THIS SCENE " +
+                             "PlayerController). It only patrols for now and keeps looking. Is the player IN THIS SCENE " +
                              "(in the Hierarchy) and active?", this);
         }
     }
 
     /// <summary>
     /// Finds the player in the scene. First by the 'Player' tag; if that fails, by looking for the object that
-    /// has PlayerMotor. So a wrong or missing tag no longer breaks the enemy. Only ACTIVE objects can be found.
+    /// has PlayerController. So a wrong or missing tag no longer breaks the enemy. Only ACTIVE objects can be found.
     /// </summary>
     private bool TryFindPlayer()
     {
@@ -270,8 +270,8 @@ public class EnemyAI : MonoBehaviour
         }
         else
         {
-            PlayerMotor motor = FindFirstObjectByType<PlayerMotor>();
-            if (motor != null) found = motor.transform;
+            PlayerController playerController = FindFirstObjectByType<PlayerController>();
+            if (playerController != null) found = playerController.transform;
         }
 
         if (found == null) return false;
