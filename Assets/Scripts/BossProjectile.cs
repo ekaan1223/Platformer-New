@@ -59,7 +59,7 @@ public class BossProjectile : MonoBehaviour
 
     private void HitSomething(Collider other)
     {
-        if (other.GetComponentInParent<PlayerMotor>() != null)
+        if (other.GetComponentInParent<PlayerController>() != null)
         {
             IDamageable target = other.GetComponentInParent<IDamageable>();
             if (target != null) target.TakeDamage(damage, velocity.normalized);

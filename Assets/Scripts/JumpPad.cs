@@ -23,7 +23,7 @@ public enum BounceMode
 /// Select the pad in the Scene view: a green arc shows exactly where the player will fly, and it updates
 /// live while you drag the sliders. You can even drag the sliders while the game is running to tune it.
 /// </summary>
-[DefaultExecutionOrder(-20)] // Runs before PlayerJump (-10), so a manual bounce takes the jump press first.
+[DefaultExecutionOrder(-20)] // Runs before PlayerController, so a manual bounce takes the jump press first.
 public class JumpPad : MonoBehaviour
 {
     [Header("HOW IT TRIGGERS")]
@@ -66,8 +66,7 @@ public class JumpPad : MonoBehaviour
     [SerializeField] private UnityEvent onLaunch;
 
     private float nextAllowedTime;
-    private PlayerMotor playerOnPad;
-    private PlayerInputReader playerInput;
+    private PlayerController playerOnPad;
     private float playerSeenTime = float.NegativeInfinity;
     private Vector3 visualStartScale;
     private Coroutine squashRoutine;
@@ -95,32 +94,28 @@ public class JumpPad : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        if (playerOnPad != null && other.GetComponentInParent<PlayerMotor>() == playerOnPad) playerOnPad = null;
+        if (playerOnPad != null && other.GetComponentInParent<PlayerController>() == playerOnPad) playerOnPad = null;
     }
 
     private void HandleTouch(Collider other)
     {
-        PlayerMotor motor = other.GetComponentInParent<PlayerMotor>();
-        if (motor == null) return;
+        PlayerController player = other.GetComponentInParent<PlayerController>();
+        if (player == null) return;
 
         if (bounceMode == BounceMode.OnJumpPress)
         {
             // Just remember who is standing on the pad; Update() watches for the jump press.
-            if (playerOnPad != motor)
-            {
-                playerOnPad = motor;
-                playerInput = motor.GetComponent<PlayerInputReader>();
-            }
+            playerOnPad = player;
             playerSeenTime = Time.time;
             return;
         }
 
-        if (CanLaunch(motor)) Launch(motor, allowHoldBonus: true);
+        if (CanLaunch(player)) Launch(player, allowHoldBonus: true);
     }
 
     private void Update()
     {
-        if (bounceMode != BounceMode.OnJumpPress || playerOnPad == null || playerInput == null) return;
+        if (bounceMode != BounceMode.OnJumpPress || playerOnPad == null) return;
 
         // The trigger reports every physics step; if it stopped reporting, the player is gone.
         if (Time.time - playerSeenTime > 0.2f)
@@ -129,35 +124,31 @@ public class JumpPad : MonoBehaviour
             return;
         }
 
-        if (!playerInput.IsJumpBuffered(jumpPressBufferSeconds) || !CanLaunch(playerOnPad)) return;
+        // The pad takes this press, so the player doesn't also do a normal jump.
+        if (!CanLaunch(playerOnPad) || !playerOnPad.TryConsumeJumpPress(jumpPressBufferSeconds)) return;
 
-        playerInput.ConsumeJump();   // the pad takes this press, so PlayerJump doesn't also do a normal jump
         Launch(playerOnPad, allowHoldBonus: false);
     }
 
-    private bool CanLaunch(PlayerMotor motor)
+    private bool CanLaunch(PlayerController player)
     {
         if (Time.time < nextAllowedTime) return false;
-        if (ignoreRisingPlayer && motor.VerticalVelocity > 0.5f) return false;
+        if (ignoreRisingPlayer && player.VerticalVelocity > 0.5f) return false;
         return true;
     }
 
-    private void Launch(PlayerMotor motor, bool allowHoldBonus)
+    private void Launch(PlayerController player, bool allowHoldBonus)
     {
         nextAllowedTime = Time.time + cooldownSeconds;
 
         // Holding jump = the higher bounce.
-        PlayerInputReader input = motor.GetComponent<PlayerInputReader>();
-        bool holding = allowHoldBonus && holdJumpToBounceHigher && input != null && input.JumpHeld;
+        bool holding = allowHoldBonus && holdJumpToBounceHigher && player.JumpHeld;
         float height = holding ? launchHeightHoldingJumpMeters : launchHeightMeters;
-
-        // Same physics as a jump: v = sqrt(2 * gravity * height) is "how fast to leave the ground to reach that height".
-        motor.VerticalVelocity = Mathf.Sqrt(2f * motor.Gravity * height);
 
         Vector3 push = transform.forward;
         push.y = 0f;
         push = push.sqrMagnitude > 0.0001f ? push.normalized * forwardPushMetersPerSecond : Vector3.zero;
-        motor.HorizontalVelocity = keepPlayerMomentum ? motor.HorizontalVelocity + push : push;
+        player.Launch(height, keepPlayerMomentum ? player.HorizontalVelocity + push : push);
 
         onLaunch?.Invoke();
 
@@ -199,8 +190,8 @@ public class JumpPad : MonoBehaviour
     private void OnDrawGizmosSelected()
     {
         float gravity = 20f;
-        PlayerMotor motor = FindFirstObjectByType<PlayerMotor>();
-        if (motor != null) gravity = motor.Gravity;
+        PlayerController player = FindFirstObjectByType<PlayerController>();
+        if (player != null) gravity = player.Gravity;
 
         Vector3 flat = transform.forward;
         flat.y = 0f;

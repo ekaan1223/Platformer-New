@@ -105,7 +105,6 @@ GameObject:
   - component: {fileID: 5739350576458078603}
   - component: {fileID: 7033687563646897214}
   - component: {fileID: 5313648887660412159}
-  - component: {fileID: 3373517264569068940}
   - component: {fileID: 3544298859266580950}
   - component: {fileID: 1422647975410563133}
   m_Layer: 6
@@ -471,6 +470,8 @@ MonoBehaviour:
   activeSeconds: 0.12
   recoverySeconds: 0.15
   attackBufferSeconds: 0.15
+  totalAttackSeconds: 0
+  ignoreClicksDuringAttack: 1
   moveSpeedMultiplier: 0.4
   lockRotationDuringSwing: 1
   allowAirAttack: 1
@@ -486,19 +487,6 @@ MonoBehaviour:
   onAttackEnded:
     m_PersistentCalls:
       m_Calls: []
---- !u!114 &3373517264569068940
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 416200573146018587}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0e221a63f65f4c04185fb974dcb2d7d1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CursorLocker
-  lockOnStart: 1
 --- !u!114 &3544298859266580950
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -42,7 +42,7 @@ public class LevelRestartInput : MonoBehaviour
     private void OnRestartPerformed(InputAction.CallbackContext context) => gameManager.RestartLevel();
 
     // Reset() runs in the editor when the component is first added (or via the "Reset" menu)
-    // and fills in default bindings, same as PlayerInputReader.
+    // and fills in default bindings.
     private void Reset()
     {
         restartAction = new InputAction("Restart", InputActionType.Button);
