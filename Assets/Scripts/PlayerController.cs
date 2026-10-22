@@ -613,10 +613,13 @@ public class PlayerController : MonoBehaviour
 
     private bool CastGround(float extraDistance)
     {
-        float castRadius = controller.radius * GroundCheckRadiusScale;
+        // The CharacterController's size scales with the object (a level may scale the player), so the probe must too.
+        float scale = transform.lossyScale.y;
+        float radius = controller.radius * scale;
+        float castRadius = radius * GroundCheckRadiusScale;
         Vector3 bottomSphereCenter = transform.TransformPoint(controller.center)
-                                     + Vector3.down * (controller.height * 0.5f - controller.radius);
-        float distance = (controller.radius - castRadius) + controller.skinWidth + groundCheckDistance + extraDistance;
+                                     + Vector3.down * (controller.height * 0.5f * scale - radius);
+        float distance = (radius - castRadius) + controller.skinWidth * scale + groundCheckDistance + extraDistance;
 
         if (!Physics.SphereCast(bottomSphereCenter, castRadius, Vector3.down, out RaycastHit hit,
                 distance, groundMask, QueryTriggerInteraction.Ignore))

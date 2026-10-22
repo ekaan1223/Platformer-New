@@ -41237,7 +41237,7 @@ MonoBehaviour:
   IgnoreTimeScale: 0
   WorldUpOverride: {fileID: 0}
   ChannelMask: -1
-  UpdateMethod: 2
+  UpdateMethod: 1
   BlendUpdateMethod: 1
   LensModeOverride:
     Enabled: 0
@@ -52823,10 +52823,6 @@ PrefabInstance:
     - target: {fileID: 1752230784466818401, guid: 97b99bcb0e1751b48a99689cd434f20e, type: 3}
       propertyPath: m_LocalRotation.z
       value: 0.0000000036977321
-      objectReference: {fileID: 0}
-    - target: {fileID: 3125790209650974905, guid: 97b99bcb0e1751b48a99689cd434f20e, type: 3}
-      propertyPath: m_SkinWidth
-      value: 0.0001
       objectReference: {fileID: 0}
     - target: {fileID: 4820686046987058299, guid: 97b99bcb0e1751b48a99689cd434f20e, type: 3}
       propertyPath: m_LocalScale.x
