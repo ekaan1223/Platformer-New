@@ -203,7 +203,7 @@ MonoBehaviour:
   damage: 1
   hitMask:
     serializedVersion: 2
-    m_Bits: 128
+    m_Bits: 385
   hitboxLocalOffset: {x: 0, y: 0.2, z: 0.25}
   hitboxRadiusMeters: 0.25
   windupSeconds: 0.06

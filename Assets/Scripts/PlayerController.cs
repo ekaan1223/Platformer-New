@@ -14,7 +14,7 @@ using UnityEngine.InputSystem;    // gives us access to the new Input System (In
 // Other scripts NEVER move the player or touch the Animator themselves. They call the public functions at the
 // bottom of this file instead:
 //   - PlayerSwordAttack -> TryConsumeAttackPress, BeginAttack, EndAttack, ClearAttackPress, IsGrounded
-//   - PlayerStomp       -> Launch (the bounce), VerticalVelocity, the Landed event
+//   - PlayerStomp       -> Launch (the bounce), jumpHeight, VerticalVelocity, the Landed event (added automatically in Awake)
 //   - JumpPad           -> Launch, TryConsumeJumpPress, JumpHeld, VerticalVelocity, HorizontalVelocity, gravity
 //   - BossController    -> Teleport
 //   - Damageable (Inspector events) -> PlayHit, Die
@@ -88,6 +88,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     [Header("Ground Check")]
     public LayerMask groundMask = ~0;        // which layers count as ground (~0 = all). Do NOT include the Player layer
     public float groundCheckDistance = 0.03f; // how far below the feet we still count as "on the ground" (meters)
+    public float edgeSlideSpeed = 2f;        // when hanging on the very edge of something (touching it, but too far out to stand on it), push off it at this speed (m/s)
 
     [Header("Animation")]
     public float crossFadeSeconds = 0.1f;    // how long the blend between two animations takes
@@ -124,6 +125,15 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private Vector3 moveDirection;                         // where the player wants to walk, in world space, length 0..1 (set in ReadMoveInput)
     private bool hasMoveInput;                             // true if a move key / the stick is pressed this frame (set in ReadMoveInput)
     private float lastGroundedTime = float.NegativeInfinity; // the last time (Time.time) we were on the ground, for coyote time and the fall animation
+
+    // Edges. Filled in by OnControllerColliderHit while controller.Move runs, then used by UpdateGrounded.
+    private float normalStepOffset;       // the CharacterController's Step Offset from the Inspector (saved in Awake). It is switched OFF in the air so we don't snag on ledges
+    private bool touchedBelow;            // did the last Move touch something under us? (set in MoveCharacter)
+    private Vector3 floorNormal;          // the most upward-facing surface direction we touched below during the last Move (zero = none)
+    private bool floorIsGround;           // is that surface on a groundMask layer?
+    private bool hitCeiling;              // did the last Move hit something flat ABOVE us (a real ceiling, not just a corner)?
+    private bool isOnEdge;                // true while hanging on an edge (touching something below but not standing on it)
+    private Vector3 edgePushDirection;    // which way to slide off that edge (flat, length 1)
 
     // Jump
     private bool groundJumpAvailable;  // true after touching the ground; used up by the first jump
@@ -179,10 +189,14 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
             controller.enabled = true; // switch it back on
         }
 
+        normalStepOffset = controller.stepOffset; // remember the step height set in the Inspector; UpdateGrounded switches it off in the air and back on when landing
+
         if (cameraTransform == null && Camera.main != null) // no camera dragged in, but the scene has a Main Camera
         {
             cameraTransform = Camera.main.transform; // use it (Camera.main is a search, so we do it only once, here)
         }
+
+        if (GetComponent<PlayerStomp>() == null) gameObject.AddComponent<PlayerStomp>(); // stomping lives in its own script (PlayerStomp); add it if the player doesn't have it yet
 
         SetUpAnimator();      // find the Animator and prepare it (see the Helpers section)
         AddDefaultBindings(); // give every button default keys if none were set in the Inspector
@@ -359,11 +373,33 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         Vector3 velocity = HorizontalVelocity;   // start with the sideways speed (from ApplyHorizontal)
         velocity.y = VerticalVelocity;           // add the up/down speed (from ApplyVertical)
 
-        CollisionFlags flags = controller.Move(velocity * deltaTime); // speed x time = distance to move this frame. Returns what we bumped into
-        // NOTE: while Move runs, Unity calls OnControllerColliderHit in PlayerStomp for everything we touch.
+        if (isOnEdge) velocity += edgePushDirection * edgeSlideSpeed; // hanging on an edge (found by UpdateGrounded last frame): slide off it
 
-        bool hitHead = (flags & CollisionFlags.Above) != 0; // did we bump into something above us (a ceiling)?
-        if (hitHead && VerticalVelocity > 0f) VerticalVelocity = 0f; // bonked our head: stop going up so we fall right away
+        floorNormal = Vector3.zero; // forget last frame's contacts; OnControllerColliderHit fills these in again during Move
+        floorIsGround = false;
+        hitCeiling = false;
+
+        CollisionFlags flags = controller.Move(velocity * deltaTime); // speed x time = distance to move this frame. Returns what we bumped into
+        // NOTE: while Move runs, Unity calls OnControllerColliderHit (below, and in PlayerStomp) for everything we touch.
+
+        touchedBelow = (flags & CollisionFlags.Below) != 0; // something is under us (real ground OR just an edge); UpdateGrounded decides which
+
+        if (hitCeiling && VerticalVelocity > 0f) VerticalVelocity = 0f; // bonked our head on a real ceiling: stop going up so we fall right away
+        // (Only a FLAT ceiling counts. Brushing a corner with our head used to kill the whole jump; now we just slide past it.)
+    }
+
+    // Unity calls this for EVERY surface the CharacterController touches during controller.Move (in MoveCharacter).
+    // hit.normal = the direction pointing out of the surface toward us. Up = floor, down = ceiling, sideways = wall,
+    // tilted = a slope or the EDGE of a box (edges give a tilted direction, pointing away from the edge).
+    private void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        if (hit.normal.y < -0.7f) hitCeiling = true; // pointing mostly down = a flat ceiling above us (MoveCharacter uses this)
+
+        if (hit.normal.y > floorNormal.y) // pointing more upward than anything else we touched this Move = our best "floor"
+        {
+            floorNormal = hit.normal;                                              // remember its direction (UpdateGrounded checks how steep it is)
+            floorIsGround = (groundMask.value & (1 << hit.gameObject.layer)) != 0; // is its layer ticked in groundMask? (1 << layer = that layer's bit)
+        }
     }
 
     // Checks if we are standing on the ground, and resets jumps / dashes when we are.
@@ -371,9 +407,34 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     {
         bool wasGrounded = IsGrounded; // remember last frame's answer, to find the exact frame we land
 
+        // Standing on what we touched: something under us, on a ground layer, and flat enough (not steeper than the slope limit).
+        bool standingOnContact = touchedBelow && floorIsGround && Vector3.Angle(floorNormal, Vector3.up) <= controller.slopeLimit;
+
         // While moving upward we are never grounded (otherwise we could jump again right after jumping).
-        // The ground probe (CastGround) is only done when needed: && stops early if the first part is already false.
-        IsGrounded = VerticalVelocity <= 0.01f && CastGround(0f);
+        // || stops early: if the contact already says "ground", the extra ground probe (CastGround) is skipped. && does the same for the first part.
+        IsGrounded = VerticalVelocity <= 0.01f && (standingOnContact || CastGround(0f));
+
+        // EDGE CHECK: we touch something below, but it doesn't count as ground -> we're hanging on a corner.
+        // The CharacterController won't slide off by itself, so without this the player would get stuck there.
+        isOnEdge = false;                                // assume not, until proven below
+        if (touchedBelow && !IsGrounded && VerticalVelocity <= 0f)
+        {
+            if (VerticalVelocity < -groundStickSpeed) VerticalVelocity = -groundStickSpeed; // something holds us up, so don't build up fall speed while hanging
+
+            edgePushDirection = floorNormal; // the edge's direction points away from the edge and up...
+            edgePushDirection.y = 0f;        // ...keep only the sideways part = "away from the edge"
+            if (edgePushDirection.sqrMagnitude > 0.0001f) // a perfectly flat surface has no sideways part: nothing to slide off
+            {
+                edgePushDirection.Normalize(); // length 1, so edgeSlideSpeed is the real speed
+                isOnEdge = true;               // MoveCharacter adds the push next frame
+            }
+        }
+
+        // Step Offset lets the CharacterController walk up small steps. In the air it makes us catch on ledges we
+        // jump past, so it is only on while grounded. (Only changed when needed.)
+        float wantedStepOffset = 0f;                          // in the air: off
+        if (IsGrounded) wantedStepOffset = normalStepOffset;  // on the ground: the Inspector value
+        if (controller.stepOffset != wantedStepOffset) controller.stepOffset = wantedStepOffset;
 
         if (IsGrounded) // on the ground: refill everything
         {
@@ -648,6 +709,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         if (IsDashing) EndDash();
         HorizontalVelocity = Vector3.zero; // no leftover speed after the teleport
         VerticalVelocity = 0f;
+        isOnEdge = false;                  // don't carry an edge push over to the new place
     }
 
     // =====================================================================================
