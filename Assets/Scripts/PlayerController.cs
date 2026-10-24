@@ -1,210 +1,215 @@
-using System;
-using UnityEngine;
-using UnityEngine.InputSystem;
+using UnityEngine;                // gives us access to Unity classes (MonoBehaviour, Vector3, Physics, Animator, etc.)
+using UnityEngine.InputSystem;    // gives us access to the new Input System (InputAction, keyboard/gamepad bindings)
 
-/// <summary>
-/// The whole player in ONE script: reads input, moves the CharacterController (walk, sprint, jump,
-/// double jump, dash, gravity) and plays the matching animation.
-///
-/// Other scripts never move the player or touch the Animator themselves. They ask through the public
-/// methods at the bottom (Launch, BeginAttack / EndAttack, PlayHit, Die, Teleport). So there is exactly one
-/// place that owns the velocity and one place that decides which animation plays.
-///
-/// ANIMATOR SETUP: the Animator sits on the model (a child of this object). Its controller only needs states
-/// with the names in <see cref="AnimState"/>. No parameters and no transitions: this script cross-fades between them.
-/// </summary>
-[RequireComponent(typeof(CharacterController))]
-public class PlayerController : MonoBehaviour
+// PLAYER CONTROLLER
+// Put this script on the Player object (the one with the CharacterController). The character model with the
+// Animator is a CHILD of that object.
+//
+// This ONE script does the whole player:
+//   1. reads the buttons (move, jump, sprint, dash, attack)
+//   2. moves the CharacterController (walk, sprint, jump, double jump, dash, gravity)
+//   3. turns the player
+//   4. picks which animation plays
+//
+// Other scripts NEVER move the player or touch the Animator themselves. They call the public functions at the
+// bottom of this file instead:
+//   - PlayerSwordAttack -> TryConsumeAttackPress, BeginAttack, EndAttack, ClearAttackPress, IsGrounded
+//   - PlayerStomp       -> Launch (the bounce), VerticalVelocity, the Landed event
+//   - JumpPad           -> Launch, TryConsumeJumpPress, JumpHeld, VerticalVelocity, HorizontalVelocity, gravity
+//   - BossController    -> Teleport
+//   - Damageable (Inspector events) -> PlayHit, Die
+// So there is exactly ONE place that owns the speed and ONE place that decides the animation.
+//
+// WHAT HAPPENS EVERY FRAME (see Update):
+//   read input -> dash -> jump -> sprint -> sideways speed -> up/down speed -> move -> ground check -> turn -> animation
+//
+// ANIMATOR SETUP: the Animator Controller only needs states with these exact names:
+//   Idle, Walk, Run, Jump, DoubleJump, Fall, Dash, Attack, Hit, Death
+// No parameters and no transitions are needed: this script blends between the states itself.
+
+[RequireComponent(typeof(CharacterController))] // Unity adds a CharacterController automatically if the object has none
+public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unity can put on an object and call every frame
 {
-    private const float InputDeadzoneSqr = 0.0001f;
-    private const float GroundCheckRadiusScale = 0.9f;  // ground probe slightly thinner than the capsule, so walls don't count
-    private const float RisingThreshold = 0.01f;        // m/s; moving up faster than this is never "grounded"
-    private const float FallAnimationDelaySeconds = 0.1f; // tiny drops (steps, slopes) don't flash the fall animation
-
-    /// <summary>Animator state names. The Animator Controller must have states with exactly these names.</summary>
-    public static class AnimState
-    {
-        public const string Idle = "Idle";
-        public const string Walk = "Walk";
-        public const string Run = "Run";
-        public const string Jump = "Jump";
-        public const string DoubleJump = "DoubleJump";
-        public const string Fall = "Fall";
-        public const string Dash = "Dash";
-        public const string Attack = "Attack";
-        public const string Hit = "Hit";
-        public const string Death = "Death";
-
-        public static readonly string[] All = { Idle, Walk, Run, Jump, DoubleJump, Fall, Dash, Attack, Hit, Death };
-    }
-
-    private static readonly int IdleHash = Animator.StringToHash(AnimState.Idle);
-    private static readonly int WalkHash = Animator.StringToHash(AnimState.Walk);
-    private static readonly int RunHash = Animator.StringToHash(AnimState.Run);
-    private static readonly int JumpHash = Animator.StringToHash(AnimState.Jump);
-    private static readonly int DoubleJumpHash = Animator.StringToHash(AnimState.DoubleJump);
-    private static readonly int FallHash = Animator.StringToHash(AnimState.Fall);
-    private static readonly int DashHash = Animator.StringToHash(AnimState.Dash);
-    private static readonly int AttackHash = Animator.StringToHash(AnimState.Attack);
-    private static readonly int HitHash = Animator.StringToHash(AnimState.Hit);
-    private static readonly int DeathHash = Animator.StringToHash(AnimState.Death);
+    // =====================================================================================
+    // SETTINGS (shown in the Inspector)
+    // IMPORTANT: these names must stay exactly the same, because Unity saves your Inspector values by name.
+    // =====================================================================================
 
     [Header("References (empty = found automatically)")]
-    [Tooltip("Movement is relative to this camera. Empty = Camera.main.")]
-    [SerializeField] private Transform cameraTransform;
-    [Tooltip("The Animator on the character model (a child of the player).")]
-    [SerializeField] private Animator animator;
-    [Tooltip("Put on the model's Animator at start. Empty = keep whatever controller the Animator already has.")]
-    [SerializeField] private RuntimeAnimatorController animatorController;
+    public Transform cameraTransform;                       // movement is relative to this camera; empty = Camera.main (found in Awake)
+    public Animator animator;                               // the Animator on the character model; empty = searched for in SetUpAnimator
+    public RuntimeAnimatorController animatorController;    // if set, it is put on the Animator at start; empty = keep the Animator's own controller
 
-    [Header("Input (empty bindings get sensible defaults)")]
-    [SerializeField] private InputAction moveAction = new InputAction("Move", InputActionType.Value, expectedControlType: "Vector2");
-    [SerializeField] private InputAction jumpAction = new InputAction("Jump", InputActionType.Button);
-    [SerializeField] private InputAction sprintAction = new InputAction("Sprint", InputActionType.Button);
-    [SerializeField] private InputAction dashAction = new InputAction("Dash", InputActionType.Button);
-    [SerializeField] private InputAction attackAction = new InputAction("Attack", InputActionType.Button);
+    [Header("Input (empty bindings get default keys in AddDefaultBindings)")]
+    public InputAction moveAction = new InputAction("Move", InputActionType.Value, expectedControlType: "Vector2"); // WASD / arrows / left stick, gives an (x, y) value
+    public InputAction jumpAction = new InputAction("Jump", InputActionType.Button);     // space / A button
+    public InputAction sprintAction = new InputAction("Sprint", InputActionType.Button); // left shift / left stick click
+    public InputAction dashAction = new InputAction("Dash", InputActionType.Button);     // Q / B button
+    public InputAction attackAction = new InputAction("Attack", InputActionType.Button); // left mouse / J / X button
 
     [Header("Walk & Sprint")]
-    [SerializeField, Min(0f)] private float walkSpeed = 5f;
-    [Tooltip("Top speed while the sprint button is held.")]
-    [SerializeField, Min(0f)] private float sprintSpeed = 8f;
-    [SerializeField, Min(0f)] private float groundAcceleration = 18f;
-    [SerializeField, Min(0f)] private float groundDeceleration = 24f;
-    [SerializeField, Min(0f)] private float airAcceleration = 10f;
-    [SerializeField, Min(0f)] private float airDeceleration = 3f;
+    public float walkSpeed = 5f;            // top speed while walking (meters per second)
+    public float sprintSpeed = 8f;          // top speed while the sprint button is held
+    // SNAPPY vs SLIPPERY: these 4 values decide it. Time to reach full speed = speed / acceleration,
+    // so walking at 5 m/s with 70 takes 5 / 70 = 0.07 seconds. Lower numbers = slower to start/stop = more slippery.
+    public float groundAcceleration = 70f;  // how fast we speed up on the ground (m/s gained per second)
+    public float groundDeceleration = 90f;  // how fast we slow down on the ground when no key is held (higher than acceleration = stops feel crisp)
+    public float airAcceleration = 40f;     // how fast we speed up in the air (lower = less air control)
+    public float airDeceleration = 25f;     // how fast we slow down in the air when no key is held (low = drift and keep momentum)
 
     [Header("Rotation")]
-    [Tooltip("ON = always face where the camera looks (S walks backwards, A/D strafe). OFF = turn to face the walking direction.")]
-    [SerializeField] private bool faceCameraDirection = true;
-    [SerializeField, Min(0f)] private float turnSpeed = 720f;
+    public bool faceCameraDirection = true; // ON = always face where the camera looks (S walks backwards). OFF = turn toward the walking direction
+    public float turnSpeed = 720f;          // how fast the player turns (degrees per second)
 
     [Header("Jump")]
-    [SerializeField, Min(0f)] private float jumpHeight = 1f;
-    [Tooltip("How many extra jumps in the air (1 = double jump).")]
-    [SerializeField, Min(0)] private int maxAirJumps = 1;
-    [SerializeField, Min(0f)] private float airJumpHeight = 1f;
-    [Tooltip("A jump pressed this long BEFORE landing still counts.")]
-    [SerializeField, Min(0f)] private float jumpBufferSeconds = 0.15f;
-    [Tooltip("You can still jump this long AFTER walking off a ledge.")]
-    [SerializeField, Min(0f)] private float coyoteSeconds = 0.12f;
-    [Tooltip("Upward speed is multiplied by this when jump is released early (short hop). 1 = always full height.")]
-    [SerializeField, Range(0f, 1f)] private float jumpReleaseMultiplier = 0.4f;
+    public float jumpHeight = 1f;           // how high a normal jump goes (meters)
+    public int maxAirJumps = 1;             // how many extra jumps in the air (1 = double jump)
+    public float airJumpHeight = 1f;        // how high the double jump goes (meters)
+    public float jumpBufferSeconds = 0.15f; // a jump pressed this long BEFORE landing still counts
+    public float coyoteSeconds = 0.12f;     // you can still jump this long AFTER walking off a ledge
+    [Range(0f, 1f)]
+    public float jumpReleaseMultiplier = 0.4f; // upward speed is multiplied by this when jump is let go early (short hop). 1 = always full height
 
     [Header("Dash")]
-    [SerializeField, Min(0f)] private float dashSpeed = 10f;
-    [SerializeField, Min(0.01f)] private float dashSeconds = 0.15f;
-    [SerializeField, Min(0f)] private float dashCooldownSeconds = 0.35f;
-    [SerializeField, Min(0f)] private float dashBufferSeconds = 0.1f;
-    [SerializeField, Min(0)] private int maxAirDashes = 1;
-    [Tooltip("Fraction of dash speed kept when the dash ends.")]
-    [SerializeField, Range(0f, 1f)] private float dashExitSpeedFraction = 0.5f;
+    public float dashSpeed = 10f;            // speed during the dash (m/s)
+    public float dashSeconds = 0.15f;        // how long one dash lasts
+    public float dashCooldownSeconds = 0.35f; // wait time after a dash before the next one
+    public float dashBufferSeconds = 0.1f;   // a dash pressed this long too early (during cooldown) still happens
+    public int maxAirDashes = 1;             // how many dashes allowed before touching the ground again
+    [Range(0f, 1f)]
+    public float dashExitSpeedFraction = 0.5f; // how much of the dash speed is kept when the dash ends
 
     [Header("Gravity")]
-    [SerializeField, Min(0f)] private float gravity = 20f;
-    [Tooltip("Falling is heavier than rising: snappier, less floaty.")]
-    [SerializeField, Min(1f)] private float fallGravityMultiplier = 1.5f;
-    [SerializeField, Min(0f)] private float maxFallSpeed = 10f;
-    [Tooltip("Small downward push while grounded so we stay glued to slopes.")]
-    [SerializeField, Min(0f)] private float groundStickSpeed = 1f;
+    public float gravity = 20f;              // how strongly we are pulled down (m/s per second). JumpPad reads this too, for its preview arc
+    public float fallGravityMultiplier = 1.5f; // falling is this many times heavier than rising: snappier, less floaty
+    public float maxFallSpeed = 10f;         // we never fall faster than this (m/s)
+    public float groundStickSpeed = 1f;      // a small downward push while standing, so we stay glued to slopes
 
     [Header("Ground Check")]
-    [Tooltip("What counts as ground. Do NOT include the Player layer.")]
-    [SerializeField] private LayerMask groundMask = ~0;
-    [SerializeField, Min(0f)] private float groundCheckDistance = 0.03f;
+    public LayerMask groundMask = ~0;        // which layers count as ground (~0 = all). Do NOT include the Player layer
+    public float groundCheckDistance = 0.03f; // how far below the feet we still count as "on the ground" (meters)
 
     [Header("Animation")]
-    [SerializeField, Min(0f)] private float crossFadeSeconds = 0.1f;
-    [Tooltip("Below this speed (m/s) on the ground the Idle animation plays.")]
-    [SerializeField, Min(0f)] private float idleSpeedThreshold = 0.1f;
-    [SerializeField, Min(0f)] private float hitAnimationSeconds = 0.4f;
+    public float crossFadeSeconds = 0.1f;    // how long the blend between two animations takes
+    public float idleSpeedThreshold = 0.1f;  // below this speed (m/s) on the ground the Idle animation plays
+    public float hitAnimationSeconds = 0.4f; // how long the Hit animation plays after taking damage
 
-    private CharacterController controller;
+    // =====================================================================================
+    // STATE OTHER SCRIPTS CAN READ
+    // [System.NonSerialized] = not shown in the Inspector and not saved: these are live values, rebuilt while playing.
+    // Only THIS script should change them; other scripts just look at them.
+    // =====================================================================================
+
+    [System.NonSerialized] public bool IsGrounded;            // true while standing on the ground (set in UpdateGrounded). Read by PlayerSwordAttack
+    [System.NonSerialized] public bool IsDashing;             // true during a dash (set in StartDash / EndDash)
+    [System.NonSerialized] public bool IsSprinting;           // true while sprinting (set in UpdateSprint)
+    [System.NonSerialized] public bool IsDead;                // true after Die() was called; stops all control
+    [System.NonSerialized] public bool JumpHeld;              // true while the jump button is held down (set in Update). Read by JumpPad
+    [System.NonSerialized] public float VerticalVelocity;     // up/down speed in m/s (+ = up). Read by PlayerStomp and JumpPad
+    [System.NonSerialized] public Vector3 HorizontalVelocity; // sideways speed (no up/down part). Read by JumpPad
+
+    public event System.Action Landed; // a "shout" sent the frame we touch the ground again. PlayerStomp listens to it to end the stomp combo
+
+    // =====================================================================================
+    // PRIVATE VARIABLES (only this script uses them)
+    // =====================================================================================
+
+    private CharacterController controller; // the Unity component that actually moves us and handles walls/floors (found in Awake)
+
+    // Camera directions, worked out ONCE per frame in ReadMoveInput and reused by Rotate and BeginAttack
+    private Vector3 cameraForward = Vector3.forward; // where the camera looks, flattened onto the ground (no up/down part)
+    private Vector3 cameraRight = Vector3.right;     // the camera's right side, flattened onto the ground
 
     // Movement
-    private Vector3 moveDirection;          // input, in world space, relative to the camera
-    private Vector3 horizontalVelocity;
-    private float verticalVelocity;
-    private bool isGrounded;
-    private float lastGroundedTime = float.NegativeInfinity;
-    private bool isSprinting;
+    private Vector3 moveDirection;                         // where the player wants to walk, in world space, length 0..1 (set in ReadMoveInput)
+    private bool hasMoveInput;                             // true if a move key / the stick is pressed this frame (set in ReadMoveInput)
+    private float lastGroundedTime = float.NegativeInfinity; // the last time (Time.time) we were on the ground, for coyote time and the fall animation
 
     // Jump
-    private bool groundJumpAvailable;
-    private int airJumpsUsed;
-    private bool jumpCutAvailable;
-    private bool lastJumpWasAirJump;
+    private bool groundJumpAvailable;  // true after touching the ground; used up by the first jump
+    private int airJumpsUsed;          // how many double jumps were used since the last landing
+    private bool jumpCutAvailable;     // true while a jump can still be made shorter by letting go of the button
+    private bool lastJumpWasAirJump;   // true if the last jump was a double jump, so the DoubleJump animation plays
 
     // Dash
-    private bool isDashing;
-    private Vector3 dashDirection;
-    private float dashTimeLeft;
-    private float dashCooldownLeft;
-    private int airDashesUsed;
+    private Vector3 dashDirection;     // the direction of the current dash (flat)
+    private float dashTimeLeft;        // seconds left in the current dash
+    private float dashCooldownLeft;    // seconds left before another dash is allowed
+    private int airDashesUsed;         // dashes used since the last landing
 
-    // Input buffer: WHEN each button was last pressed (NegativeInfinity = no press waiting)
-    private float jumpPressedTime = float.NegativeInfinity;
-    private float dashPressedTime = float.NegativeInfinity;
-    private float attackPressedTime = float.NegativeInfinity;
+    // Input buffer: WHEN each button was last pressed. NegativeInfinity = "no press waiting".
+    // Storing the time (not just true/false) lets a press made slightly too early still count a moment later.
+    private float jumpPressedTime = float.NegativeInfinity;   // set in OnJumpPressed, used up in Jump / TryConsumeJumpPress
+    private float dashPressedTime = float.NegativeInfinity;   // set in OnDashPressed, used up in StartDash
+    private float attackPressedTime = float.NegativeInfinity; // set in OnAttackPressed, used up by PlayerSwordAttack through TryConsumeAttackPress
 
-    // Actions requested by other scripts
-    private bool isAttacking;
-    private float attackSpeedMultiplier = 1f;
-    private bool rotationLocked;
-    private float hitTimeLeft;
-    private bool isDead;
+    // Things other scripts switched on
+    private bool isAttacking;                 // true between BeginAttack and EndAttack (called by PlayerSwordAttack)
+    private float attackSpeedMultiplier = 1f; // walking speed is multiplied by this while attacking
+    private bool rotationLocked;              // true = don't turn (during a sword swing)
+    private float hitTimeLeft;                // seconds left of the Hit animation (set in PlayHit)
 
-    // Animation
-    private int currentAnimation;
-    private bool restartAnimation;
-
-    // ---- Read-only state for other scripts ------------------------------------------------
-    public bool IsGrounded => isGrounded;
-    public bool IsDashing => isDashing;
-    public bool IsSprinting => isSprinting;
-    public bool IsDead => isDead;
-    public bool JumpHeld => jumpAction.IsPressed();
-    public float Gravity => gravity;
-    public float VerticalVelocity => verticalVelocity;
-    public Vector3 HorizontalVelocity => horizontalVelocity;
-
-    /// <summary>Raised the frame the player touches the ground again.</summary>
-    public event Action Landed;
+    // Animation. Unity finds Animator states fastest by a number ("hash") instead of by name,
+    // so every name is turned into a number ONCE in Start and the numbers are reused every frame.
+    private int idleHash;
+    private int walkHash;
+    private int runHash;
+    private int jumpHash;
+    private int doubleJumpHash;
+    private int fallHash;
+    private int dashHash;
+    private int attackHash;
+    private int hitHash;
+    private int deathHash;
+    private int currentAnimation;     // the hash of the animation playing now, so we only tell the Animator when it CHANGES
+    private bool restartAnimation;    // true = play the animation from the start even if it is the same one (second swing, second jump)
 
     // =====================================================================================
-    // Unity
+    // UNITY FUNCTIONS (Unity calls these by itself)
     // =====================================================================================
 
+    // Awake runs once, when the object is created, before any Update.
     private void Awake()
     {
-        controller = GetComponent<CharacterController>();
-        if (!controller.enabled)
+        controller = GetComponent<CharacterController>(); // find our CharacterController once and keep it (searching every frame would be slow)
+
+        if (!controller.enabled) // a switched-off CharacterController can't move at all
         {
-            Debug.LogWarning($"{name}: the CharacterController was switched off, so the player could not move. Switching it on.", this);
-            controller.enabled = true;
+            Debug.LogWarning(name + ": the CharacterController was switched off, so the player could not move. Switching it on.", this);
+            controller.enabled = true; // switch it back on
         }
 
-        if (cameraTransform == null && Camera.main != null) cameraTransform = Camera.main.transform;
+        if (cameraTransform == null && Camera.main != null) // no camera dragged in, but the scene has a Main Camera
+        {
+            cameraTransform = Camera.main.transform; // use it (Camera.main is a search, so we do it only once, here)
+        }
 
-        SetUpAnimator();
-        AddDefaultBindings();
+        SetUpAnimator();      // find the Animator and prepare it (see the Helpers section)
+        AddDefaultBindings(); // give every button default keys if none were set in the Inspector
 
-        // Remember the press time, so a press slightly too early still counts (input buffering).
-        jumpAction.performed += _ => jumpPressedTime = Time.time;
-        dashAction.performed += _ => dashPressedTime = Time.time;
-        attackAction.performed += _ => attackPressedTime = Time.time;
+        // Tell the Input System: "when this button is pressed, call this function". The functions only remember the time.
+        jumpAction.performed += OnJumpPressed;
+        dashAction.performed += OnDashPressed;
+        attackAction.performed += OnAttackPressed;
     }
 
+    // Start runs once, after every Awake, right before the first Update.
     private void Start()
     {
-        if (animator == null || animator.runtimeAnimatorController == null) return;
-
-        foreach (string state in AnimState.All)
-        {
-            if (!animator.HasState(0, Animator.StringToHash(state)))
-                Debug.LogWarning($"{name}: the Animator Controller has no state called '{state}', so that animation won't play.", this);
-        }
+        // Turn every animation name into its number, and warn if the Animator Controller is missing that state.
+        idleHash = GetStateHash("Idle");
+        walkHash = GetStateHash("Walk");
+        runHash = GetStateHash("Run");
+        jumpHash = GetStateHash("Jump");
+        doubleJumpHash = GetStateHash("DoubleJump");
+        fallHash = GetStateHash("Fall");
+        dashHash = GetStateHash("Dash");
+        attackHash = GetStateHash("Attack");
+        hitHash = GetStateHash("Hit");
+        deathHash = GetStateHash("Death");
     }
 
+    // OnEnable runs when the script is switched on. Input actions only listen to keys while enabled.
     private void OnEnable()
     {
         moveAction.Enable();
@@ -214,6 +219,7 @@ public class PlayerController : MonoBehaviour
         attackAction.Enable();
     }
 
+    // OnDisable runs when the script is switched off (or the object is destroyed): stop listening to keys.
     private void OnDisable()
     {
         moveAction.Disable();
@@ -223,461 +229,571 @@ public class PlayerController : MonoBehaviour
         attackAction.Disable();
     }
 
+    // Update runs once every frame. The ORDER matters: each step uses what the step before it decided.
     private void Update()
     {
-        float deltaTime = Time.deltaTime;
+        float deltaTime = Time.deltaTime; // seconds since the last frame; multiplying by it makes speeds the same at any frame rate
 
-        ReadMoveInput();
-        if (hitTimeLeft > 0f) hitTimeLeft -= deltaTime;
+        JumpHeld = jumpAction.IsPressed();       // remember if jump is held, for the short-hop check and for JumpPad
+        ReadMoveInput();                         // 1. which way do we want to walk? (also saves the camera directions)
+        if (hitTimeLeft > 0f) hitTimeLeft -= deltaTime; // count down the Hit animation timer
 
-        if (!isDead)
+        if (!IsDead) // a dead player can't start dashes or jumps
         {
-            UpdateDash(deltaTime);
-            UpdateJump();
+            UpdateDash(deltaTime); // 2. start / continue / end a dash
+            UpdateJump();          // 3. start a jump, or cut it short
         }
 
-        UpdateSprint();
-        ApplyHorizontal(deltaTime);
-        ApplyVertical(deltaTime);
-        MoveCharacter(deltaTime);
-        UpdateGrounded();
-        Rotate(deltaTime);
-        UpdateAnimation();
+        UpdateSprint();                // 4. are we sprinting? (needs IsGrounded from last frame and isAttacking)
+        ApplyHorizontal(deltaTime);    // 5. change the sideways speed toward the wanted speed
+        ApplyVertical(deltaTime);      // 6. apply gravity to the up/down speed
+        MoveCharacter(deltaTime);      // 7. actually move, using the speeds from steps 5 and 6
+        UpdateGrounded();              // 8. after moving: are we on the ground now?
+        Rotate(deltaTime);             // 9. turn the player
+        UpdateAnimation();             // 10. pick the animation from everything above
     }
 
     // =====================================================================================
-    // Movement
+    // INPUT CALLBACKS (the Input System calls these the moment a button is pressed; hooked up in Awake)
     // =====================================================================================
 
+    private void OnJumpPressed(InputAction.CallbackContext context)
+    {
+        jumpPressedTime = Time.time; // remember WHEN; UpdateJump checks if this press is still recent enough
+    }
+
+    private void OnDashPressed(InputAction.CallbackContext context)
+    {
+        dashPressedTime = Time.time; // remember WHEN; UpdateDash checks if this press is still recent enough
+    }
+
+    private void OnAttackPressed(InputAction.CallbackContext context)
+    {
+        attackPressedTime = Time.time; // remember WHEN; PlayerSwordAttack asks for it through TryConsumeAttackPress
+    }
+
+    // =====================================================================================
+    // MOVEMENT
+    // =====================================================================================
+
+    // Turns the keys / stick into a direction in the world, relative to the camera.
     private void ReadMoveInput()
     {
-        Vector2 raw = isDead ? Vector2.zero : moveAction.ReadValue<Vector2>();
+        Vector2 input = Vector2.zero;                   // (x = left/right, y = forward/back), zero if dead
+        if (!IsDead) input = moveAction.ReadValue<Vector2>(); // read the keys / stick
 
-        Vector3 forward = Vector3.forward;
-        Vector3 right = Vector3.right;
-        if (cameraTransform != null)
+        if (cameraTransform != null) // with a camera: "forward" means "where the camera looks"
         {
-            forward = Flatten(cameraTransform.forward);
-            right = Flatten(cameraTransform.right);
+            cameraForward = Flatten(cameraTransform.forward); // flattened so looking down doesn't make us walk into the floor
+            cameraRight = Flatten(cameraTransform.right);
         }
 
-        moveDirection = Vector3.ClampMagnitude(forward * raw.y + right * raw.x, 1f);
+        moveDirection = cameraForward * input.y + cameraRight * input.x; // mix forward and right by how much each key is pressed
+        moveDirection = Vector3.ClampMagnitude(moveDirection, 1f);      // diagonals would be longer than 1 (faster): cut them back to 1
+        hasMoveInput = moveDirection.sqrMagnitude > 0.0001f;            // sqrMagnitude = length squared; skips a square root, which is cheaper
     }
 
-    /// <summary>Sprint is decided on the ground only, so a sprinting jump keeps its speed in the air.</summary>
+    // Decides if we sprint. Only decided on the ground, so a sprinting jump keeps its sprint speed in the air.
     private void UpdateSprint()
     {
-        if (!isGrounded) return;
+        if (!IsGrounded) return; // in the air: keep whatever we had when we left the ground
 
-        isSprinting = sprintAction.IsPressed() && HasMoveInput && !isAttacking && !isDashing && !isDead;
+        IsSprinting = sprintAction.IsPressed() && hasMoveInput && !isAttacking && !IsDashing && !IsDead; // sprint only if ALL of these are true
     }
 
+    // Moves the sideways speed a little toward the speed we want. This gives smooth speeding up and slowing down.
     private void ApplyHorizontal(float deltaTime)
     {
-        if (isDashing)
+        if (IsDashing) // during a dash the speed is fixed
         {
-            horizontalVelocity = dashDirection * dashSpeed;
-            return;
+            HorizontalVelocity = dashDirection * dashSpeed; // full dash speed in the dash direction
+            return;                                         // skip the normal walking code below
         }
 
-        float topSpeed = (isSprinting ? sprintSpeed : walkSpeed) * (isAttacking ? attackSpeedMultiplier : 1f);
-        Vector3 targetVelocity = moveDirection * topSpeed;
+        float topSpeed = walkSpeed;                   // normally walk speed...
+        if (IsSprinting) topSpeed = sprintSpeed;      // ...or sprint speed
+        if (isAttacking) topSpeed *= attackSpeedMultiplier; // slower while swinging the sword (set by BeginAttack)
 
-        float rate;
-        if (isGrounded) rate = HasMoveInput ? groundAcceleration : groundDeceleration;
-        else rate = HasMoveInput ? airAcceleration : airDeceleration;
+        Vector3 targetVelocity = moveDirection * topSpeed; // the speed we WANT (zero when no key is held)
 
-        horizontalVelocity = Vector3.MoveTowards(horizontalVelocity, targetVelocity, rate * deltaTime);
+        float rate;                                   // how fast we may change speed this frame
+        if (IsGrounded)
+        {
+            if (hasMoveInput) rate = groundAcceleration; // on ground, key held: speed up
+            else rate = groundDeceleration;              // on ground, no key: brake
+        }
+        else
+        {
+            if (hasMoveInput) rate = airAcceleration;    // in air, key held: steer a bit
+            else rate = airDeceleration;                 // in air, no key: drift (keep most momentum)
+        }
+
+        HorizontalVelocity = Vector3.MoveTowards(HorizontalVelocity, targetVelocity, rate * deltaTime); // step toward the wanted speed, never overshooting
     }
 
+    // Applies gravity to the up/down speed.
     private void ApplyVertical(float deltaTime)
     {
-        if (isDashing)
+        if (IsDashing) // dashes fly in a straight line
         {
-            verticalVelocity = 0f; // dash flies in a straight line
+            VerticalVelocity = 0f; // no falling during a dash
             return;
         }
 
-        if (isGrounded && verticalVelocity <= 0f)
+        if (IsGrounded && VerticalVelocity <= 0f) // standing on the ground and not jumping
         {
-            verticalVelocity = -groundStickSpeed;
+            VerticalVelocity = -groundStickSpeed; // a small push down keeps us glued to slopes and steps
             return;
         }
 
-        float appliedGravity = gravity * (verticalVelocity < 0f ? fallGravityMultiplier : 1f);
-        verticalVelocity = Mathf.Max(verticalVelocity - appliedGravity * deltaTime, -maxFallSpeed);
+        float appliedGravity = gravity;                                  // normal gravity while rising...
+        if (VerticalVelocity < 0f) appliedGravity *= fallGravityMultiplier; // ...heavier while falling
+
+        VerticalVelocity -= appliedGravity * deltaTime;                  // gravity pulls the speed down a bit every frame
+        if (VerticalVelocity < -maxFallSpeed) VerticalVelocity = -maxFallSpeed; // but never faster than the max fall speed
     }
 
+    // Moves the CharacterController. It slides along walls and stops at floors by itself.
     private void MoveCharacter(float deltaTime)
     {
-        Vector3 velocity = horizontalVelocity + Vector3.up * verticalVelocity;
-        CollisionFlags flags = controller.Move(velocity * deltaTime);
+        Vector3 velocity = HorizontalVelocity;   // start with the sideways speed (from ApplyHorizontal)
+        velocity.y = VerticalVelocity;           // add the up/down speed (from ApplyVertical)
 
-        // Bonked our head: stop rising.
-        if ((flags & CollisionFlags.Above) != 0 && verticalVelocity > 0f) verticalVelocity = 0f;
+        CollisionFlags flags = controller.Move(velocity * deltaTime); // speed x time = distance to move this frame. Returns what we bumped into
+        // NOTE: while Move runs, Unity calls OnControllerColliderHit in PlayerStomp for everything we touch.
+
+        bool hitHead = (flags & CollisionFlags.Above) != 0; // did we bump into something above us (a ceiling)?
+        if (hitHead && VerticalVelocity > 0f) VerticalVelocity = 0f; // bonked our head: stop going up so we fall right away
     }
 
+    // Checks if we are standing on the ground, and resets jumps / dashes when we are.
     private void UpdateGrounded()
     {
-        bool wasGrounded = isGrounded;
+        bool wasGrounded = IsGrounded; // remember last frame's answer, to find the exact frame we land
 
-        // While moving upward we are never grounded (prevents a second ground jump right after jumping).
-        isGrounded = verticalVelocity <= RisingThreshold && CastGround(0f);
+        // While moving upward we are never grounded (otherwise we could jump again right after jumping).
+        // The ground probe (CastGround) is only done when needed: && stops early if the first part is already false.
+        IsGrounded = VerticalVelocity <= 0.01f && CastGround(0f);
 
-        if (isGrounded)
+        if (IsGrounded) // on the ground: refill everything
         {
-            lastGroundedTime = Time.time;
-            groundJumpAvailable = true;
-            airJumpsUsed = 0;
-            if (!isDashing) airDashesUsed = 0;
+            lastGroundedTime = Time.time;       // for coyote time and the fall animation delay
+            groundJumpAvailable = true;         // the normal jump is available again
+            airJumpsUsed = 0;                   // double jumps are refilled
+            if (!IsDashing) airDashesUsed = 0;  // air dashes are refilled (not during a dash along the ground)
         }
 
-        if (isGrounded && !wasGrounded) Landed?.Invoke();
+        if (IsGrounded && !wasGrounded) // this is the frame we touched down
+        {
+            if (Landed != null) Landed(); // tell everyone listening (PlayerStomp ends its combo)
+        }
     }
 
+    // Turns the player smoothly toward where it should face.
     private void Rotate(float deltaTime)
     {
-        if (rotationLocked || isDead) return;
+        if (rotationLocked || IsDead) return; // no turning during a locked sword swing or when dead
 
-        Vector3 lookDirection;
-        if (isDashing) lookDirection = dashDirection;
-        else if (faceCameraDirection && cameraTransform != null) lookDirection = Flatten(cameraTransform.forward);
-        else lookDirection = moveDirection;
+        Vector3 lookDirection;                                               // where we want to face
+        if (IsDashing) lookDirection = dashDirection;                        // face the dash
+        else if (faceCameraDirection && cameraTransform != null) lookDirection = cameraForward; // face where the camera looks (worked out in ReadMoveInput)
+        else lookDirection = moveDirection;                                  // face where we walk
 
-        lookDirection.y = 0f;
-        if (lookDirection.sqrMagnitude < InputDeadzoneSqr) return;
+        if (lookDirection.sqrMagnitude < 0.0001f) return; // no direction (standing still): keep the current rotation
 
-        Quaternion target = Quaternion.LookRotation(lookDirection.normalized, Vector3.up);
-        transform.rotation = Quaternion.RotateTowards(transform.rotation, target, turnSpeed * deltaTime);
+        Quaternion target = Quaternion.LookRotation(lookDirection.normalized, Vector3.up); // the rotation that faces lookDirection
+        transform.rotation = Quaternion.RotateTowards(transform.rotation, target, turnSpeed * deltaTime); // turn toward it, at most turnSpeed degrees per second
     }
 
     // =====================================================================================
-    // Jump
+    // JUMP
     // =====================================================================================
 
     private void UpdateJump()
     {
-        if (IsBuffered(jumpPressedTime, jumpBufferSeconds))
+        if (IsPressRecent(jumpPressedTime, jumpBufferSeconds)) // jump was pressed recently and not used yet
         {
-            bool withinCoyoteTime = Time.time - lastGroundedTime <= coyoteSeconds;
+            bool withinCoyoteTime = Time.time - lastGroundedTime <= coyoteSeconds; // left the ground only a moment ago?
 
-            if (groundJumpAvailable && (isGrounded || withinCoyoteTime))
+            if (groundJumpAvailable && (IsGrounded || withinCoyoteTime)) // normal jump: on the ground, or just walked off a ledge
             {
-                groundJumpAvailable = false;
-                Jump(jumpHeight, airJump: false);
+                groundJumpAvailable = false;     // used up until we land again (UpdateGrounded refills it)
+                Jump(jumpHeight, false);         // false = not a double jump
             }
-            else if (airJumpsUsed < maxAirJumps && !WillLandBeforeBufferEnds())
+            else if (airJumpsUsed < maxAirJumps && !WillLandBeforeBufferEnds()) // double jump, unless we're about to land anyway
             {
-                airJumpsUsed++;
-                Jump(airJumpHeight, airJump: true);
+                airJumpsUsed++;                  // count it (UpdateGrounded resets it)
+                Jump(airJumpHeight, true);       // true = double jump (plays the DoubleJump animation)
             }
         }
 
-        // Variable height: letting go of jump while still rising cuts the jump short.
-        if (!jumpCutAvailable) return;
+        // Variable jump height: letting go of jump while still going up makes the jump shorter.
+        if (!jumpCutAvailable) return;  // no jump to cut (or already cut)
 
-        if (verticalVelocity <= 0f)
+        if (VerticalVelocity <= 0f)     // already at the top / falling
         {
-            jumpCutAvailable = false;
+            jumpCutAvailable = false;   // too late to cut now
         }
-        else if (!jumpAction.IsPressed())
+        else if (!JumpHeld)             // still going up but the button was let go
         {
-            verticalVelocity *= jumpReleaseMultiplier;
-            jumpCutAvailable = false;
+            VerticalVelocity *= jumpReleaseMultiplier; // cut the upward speed -> short hop
+            jumpCutAvailable = false;   // only cut once per jump
         }
     }
 
+    // Does the jump itself. Called by UpdateJump.
     private void Jump(float height, bool airJump)
     {
-        if (isDashing) EndDash(); // jumping cancels a dash
+        if (IsDashing) EndDash(); // jumping cancels a dash
 
-        verticalVelocity = JumpSpeed(height);
-        jumpPressedTime = float.NegativeInfinity;
-        jumpCutAvailable = true;
-        lastJumpWasAirJump = airJump;
-        restartAnimation = true;
+        VerticalVelocity = JumpSpeed(height);   // the upward speed needed to reach that height
+        jumpPressedTime = float.NegativeInfinity; // the press is used up, so it can't jump twice
+        jumpCutAvailable = true;                // letting go of the button may now shorten this jump
+        lastJumpWasAirJump = airJump;           // so ChooseAnimation picks Jump or DoubleJump
+        restartAnimation = true;                // play the jump animation from the start, even if it was already playing
     }
 
-    /// <summary>
-    /// If we will touch the ground before the buffered press expires, keep it for a proper ground jump
-    /// instead of wasting the double jump right before landing.
-    /// </summary>
+    // If we will touch the ground before the jump press expires, keep the press for a real ground jump
+    // instead of wasting the double jump a few centimeters above the floor.
     private bool WillLandBeforeBufferEnds()
     {
-        if (verticalVelocity >= 0f) return false;
+        if (VerticalVelocity >= 0f) return false; // going up: we won't land soon
 
-        float bufferLeft = jumpBufferSeconds - (Time.time - jumpPressedTime);
-        return CastGround(-verticalVelocity * bufferLeft);
+        float bufferTimeLeft = jumpBufferSeconds - (Time.time - jumpPressedTime); // how long the press stays valid
+        float fallDistance = -VerticalVelocity * bufferTimeLeft;                    // roughly how far we fall in that time
+        return CastGround(fallDistance);                                            // is there ground within that distance?
     }
 
     // =====================================================================================
-    // Dash
+    // DASH
     // =====================================================================================
 
     private void UpdateDash(float deltaTime)
     {
-        if (isDashing)
+        if (IsDashing) // a dash is running
         {
-            dashTimeLeft -= deltaTime;
-            if (dashTimeLeft <= 0f) EndDash();
-            return;
+            dashTimeLeft -= deltaTime;           // count it down
+            if (dashTimeLeft <= 0f) EndDash();   // time is up
+            return;                              // can't start a new dash during one
         }
 
-        if (dashCooldownLeft > 0f) dashCooldownLeft -= deltaTime;
+        if (dashCooldownLeft > 0f) dashCooldownLeft -= deltaTime; // count down the cooldown
 
-        if (!IsBuffered(dashPressedTime, dashBufferSeconds) || dashCooldownLeft > 0f) return;
-        if (!isGrounded && airDashesUsed >= maxAirDashes) return;
+        if (!IsPressRecent(dashPressedTime, dashBufferSeconds)) return; // dash wasn't pressed recently
+        if (dashCooldownLeft > 0f) return;                              // still cooling down (the press stays buffered for a moment)
+        if (!IsGrounded && airDashesUsed >= maxAirDashes) return;       // no air dashes left
 
         StartDash();
     }
 
     private void StartDash()
     {
-        dashDirection = HasMoveInput ? moveDirection.normalized : transform.forward;
-        dashDirection.y = 0f;
+        if (hasMoveInput) dashDirection = moveDirection.normalized; // dash where the stick points...
+        else dashDirection = transform.forward;                     // ...or forward if nothing is pressed
+        dashDirection.y = 0f;                                       // keep it flat
 
-        if (!isGrounded) airDashesUsed++;
+        if (!IsGrounded) airDashesUsed++; // count air dashes (UpdateGrounded resets the count)
 
-        isDashing = true;
-        dashTimeLeft = dashSeconds;
-        dashPressedTime = float.NegativeInfinity;
-        verticalVelocity = 0f;
-        jumpCutAvailable = false;
-        restartAnimation = true;
+        IsDashing = true;                          // ApplyHorizontal / ApplyVertical / Rotate / ChooseAnimation all check this
+        dashTimeLeft = dashSeconds;                // how long it lasts (counted down in UpdateDash)
+        dashPressedTime = float.NegativeInfinity;  // the press is used up
+        VerticalVelocity = 0f;                     // stop falling / rising
+        jumpCutAvailable = false;                  // the dash replaced the jump, nothing to cut
+        restartAnimation = true;                   // play the dash animation from the start
     }
 
     private void EndDash()
     {
-        isDashing = false;
-        dashCooldownLeft = dashCooldownSeconds;
-        horizontalVelocity = Vector3.ClampMagnitude(horizontalVelocity, dashSpeed * dashExitSpeedFraction);
+        IsDashing = false;                       // back to normal movement
+        dashCooldownLeft = dashCooldownSeconds;  // start the cooldown
+        HorizontalVelocity = Vector3.ClampMagnitude(HorizontalVelocity, dashSpeed * dashExitSpeedFraction); // keep only part of the dash speed
     }
 
     // =====================================================================================
-    // Animation: the ONE place that decides what the model plays
+    // ANIMATION (the ONE place that decides what the model plays)
     // =====================================================================================
 
     private void UpdateAnimation()
     {
-        if (animator == null || animator.runtimeAnimatorController == null) return;
+        if (animator == null || animator.runtimeAnimatorController == null) return; // nothing to animate
 
-        int next = ChooseAnimation();
-        if (next == currentAnimation && !restartAnimation) return;
-        if (!animator.HasState(0, next)) return;
+        int next = ChooseAnimation(); // which animation should play now?
 
-        if (next == currentAnimation) animator.Play(next, 0, 0f);   // same move again (second swing, stomp bounce): restart it
-        else animator.CrossFadeInFixedTime(next, crossFadeSeconds, 0);
+        if (next == currentAnimation && !restartAnimation) return; // same as before: do NOTHING (this is what happens on most frames, so it's cheap)
+        if (!animator.HasState(0, next)) return; // the Animator Controller doesn't have this state: skip it instead of filling the Console with errors
 
-        currentAnimation = next;
-        restartAnimation = false;
+        if (next == currentAnimation) animator.Play(next, 0, 0f);          // same move again (second swing, stomp bounce): restart it from 0
+        else animator.CrossFadeInFixedTime(next, crossFadeSeconds, 0);     // a different move: blend into it smoothly
+
+        currentAnimation = next;   // remember what plays now
+        restartAnimation = false;  // the restart request is handled
     }
 
-    /// <summary>Highest priority first.</summary>
+    // Returns the animation to play. Checked from most important to least important: the first match wins.
     private int ChooseAnimation()
     {
-        if (isDead) return DeathHash;
-        if (hitTimeLeft > 0f) return HitHash;
-        if (isAttacking) return AttackHash;
-        if (isDashing) return DashHash;
+        if (IsDead) return deathHash;          // dead beats everything
+        if (hitTimeLeft > 0f) return hitHash;  // just got hit (PlayHit)
+        if (isAttacking) return attackHash;    // swinging the sword (BeginAttack)
+        if (IsDashing) return dashHash;        // dashing
 
-        bool justLeftGround = Time.time - lastGroundedTime < FallAnimationDelaySeconds;
-        if (!isGrounded && (verticalVelocity > 0f || !justLeftGround))
+        if (!IsGrounded) // in the air
         {
-            if (verticalVelocity > 0f) return lastJumpWasAirJump ? DoubleJumpHash : JumpHash;
-            return FallHash;
+            if (VerticalVelocity > 0f) // going up
+            {
+                if (lastJumpWasAirJump) return doubleJumpHash;
+                return jumpHash;
+            }
+
+            bool justLeftGround = Time.time - lastGroundedTime < 0.1f; // small drops (steps, slopes) last less than 0.1 s
+            if (!justLeftGround) return fallHash; // really falling: play Fall. (Tiny drops fall through to Idle/Walk below so Fall doesn't flash)
         }
 
-        if (horizontalVelocity.magnitude < idleSpeedThreshold) return IdleHash;
-        return isSprinting ? RunHash : WalkHash;
+        float minSpeedSqr = idleSpeedThreshold * idleSpeedThreshold; // compare squared lengths: no square root needed
+        if (HorizontalVelocity.sqrMagnitude < minSpeedSqr) return idleHash; // almost not moving
+        if (IsSprinting) return runHash;
+        return walkHash;
     }
 
     // =====================================================================================
-    // Public actions: the ONLY way other scripts change the player
+    // PUBLIC FUNCTIONS (the ONLY way other scripts change the player)
     // =====================================================================================
 
-    /// <summary>Uses up a buffered jump press (a jump pad that takes the press instead of a normal jump).</summary>
+    // Uses up a recent jump press. JumpPad calls this so the press bounces off the pad instead of doing a normal jump.
     public bool TryConsumeJumpPress(float bufferSeconds)
     {
-        if (!IsBuffered(jumpPressedTime, bufferSeconds)) return false;
-        jumpPressedTime = float.NegativeInfinity;
+        if (!IsPressRecent(jumpPressedTime, bufferSeconds)) return false; // no recent press
+        jumpPressedTime = float.NegativeInfinity;                         // used up, so UpdateJump won't also use it
         return true;
     }
 
-    /// <summary>Uses up a buffered attack press. The sword calls this to know when to swing.</summary>
+    // Uses up a recent attack press. PlayerSwordAttack calls this every frame to know when to swing.
     public bool TryConsumeAttackPress(float bufferSeconds)
     {
-        if (!IsBuffered(attackPressedTime, bufferSeconds)) return false;
-        attackPressedTime = float.NegativeInfinity;
+        if (!IsPressRecent(attackPressedTime, bufferSeconds)) return false; // no recent press
+        attackPressedTime = float.NegativeInfinity;                         // used up
         return true;
     }
 
-    /// <summary>Forget any attack press made so far (clicks during a swing).</summary>
-    public void ClearAttackPress() => attackPressedTime = float.NegativeInfinity;
+    // Forgets any attack press made so far. PlayerSwordAttack calls this so clicks during a swing are ignored.
+    public void ClearAttackPress()
+    {
+        attackPressedTime = float.NegativeInfinity;
+    }
 
-    /// <summary>Throws the player up to the given height (stomp bounce, jump pad). Keeps the sideways speed.</summary>
-    public void Launch(float heightMeters) => LaunchInternal(heightMeters, null);
+    // Throws the player up to the given height and keeps the sideways speed. Used by PlayerStomp (bounce) and JumpPad.
+    public void Launch(float heightMeters)
+    {
+        DoLaunch(heightMeters, false, Vector3.zero); // false = don't change the sideways speed
+    }
 
-    /// <summary>Throws the player up and sets the sideways speed (a cannon pad).</summary>
-    public void Launch(float heightMeters, Vector3 newHorizontalVelocity) => LaunchInternal(heightMeters, newHorizontalVelocity);
+    // Throws the player up AND sets a new sideways speed. Used by JumpPad (a pad that pushes you forward).
+    public void Launch(float heightMeters, Vector3 newHorizontalVelocity)
+    {
+        DoLaunch(heightMeters, true, newHorizontalVelocity); // true = replace the sideways speed
+    }
 
-    /// <summary>Starts a sword swing: aims, slows the player down and plays the attack animation. False if it can't.</summary>
+    // Starts a sword swing: aims, slows the player and plays the attack animation. Called by PlayerSwordAttack.
+    // Returns false if the swing isn't allowed (dead).
     public bool BeginAttack(float moveSpeedMultiplier, bool lockRotation)
     {
-        if (isDead) return false;
+        if (IsDead) return false;
 
-        // Aim: where the camera looks in camera-facing mode, otherwise toward the stick.
-        Vector3 aim = faceCameraDirection && cameraTransform != null ? Flatten(cameraTransform.forward) : moveDirection;
-        if (aim.sqrMagnitude > InputDeadzoneSqr) transform.rotation = Quaternion.LookRotation(aim.normalized, Vector3.up);
+        Vector3 aim = moveDirection;                                          // aim where the stick points...
+        if (faceCameraDirection && cameraTransform != null) aim = cameraForward; // ...or where the camera looks in camera-facing mode
+        if (aim.sqrMagnitude > 0.0001f) transform.rotation = Quaternion.LookRotation(aim.normalized, Vector3.up); // snap to face it instantly
 
-        isAttacking = true;
-        attackSpeedMultiplier = Mathf.Clamp01(moveSpeedMultiplier);
-        rotationLocked = lockRotation;
-        restartAnimation = true;
+        isAttacking = true;                                       // ApplyHorizontal, UpdateSprint and ChooseAnimation check this
+        attackSpeedMultiplier = Mathf.Clamp01(moveSpeedMultiplier); // 0..1, used in ApplyHorizontal
+        rotationLocked = lockRotation;                            // Rotate checks this
+        restartAnimation = true;                                  // restart the attack animation (for a second swing in a row)
         return true;
     }
 
+    // Ends the sword swing. Called by PlayerSwordAttack, and by Die.
     public void EndAttack()
     {
         isAttacking = false;
-        attackSpeedMultiplier = 1f;
-        rotationLocked = false;
+        attackSpeedMultiplier = 1f; // full speed again
+        rotationLocked = false;     // can turn again
     }
 
-    /// <summary>Hook to Damageable -> On Damaged.</summary>
+    // Plays the Hit animation. Hook it to Damageable -> On Damaged in the Inspector.
     public void PlayHit()
     {
-        if (isDead) return;
-        hitTimeLeft = hitAnimationSeconds;
-        restartAnimation = true;
+        if (IsDead) return;
+        hitTimeLeft = hitAnimationSeconds; // ChooseAnimation plays Hit while this is above 0 (counted down in Update)
+        restartAnimation = true;           // restart it if we get hit twice quickly
     }
 
-    /// <summary>Hook to Damageable -> On Died. Stops all control and plays the death animation.</summary>
+    // Stops all control and plays the Death animation. Hook it to Damageable -> On Died in the Inspector.
     public void Die()
     {
-        if (isDead) return;
+        if (IsDead) return; // already dead
 
-        if (isDashing) EndDash();
+        if (IsDashing) EndDash();
         EndAttack();
-        isSprinting = false;
-        isDead = true;
+        IsSprinting = false;
+        IsDead = true; // ReadMoveInput, Update, Rotate, ChooseAnimation and the public functions all check this
     }
 
-    /// <summary>Instantly moves the player and clears its speed (boss arena, respawn).</summary>
+    // Instantly moves the player and clears its speed. Called by BossController (arena / respawn).
     public void Teleport(Vector3 position, Quaternion rotation)
     {
-        // A CharacterController overrides direct position changes, so switch it off for the move.
+        // A CharacterController puts the player back where IT thinks it is, so it has to be off while we move.
         controller.enabled = false;
         transform.SetPositionAndRotation(position, rotation);
         controller.enabled = true;
 
-        if (isDashing) EndDash();
-        horizontalVelocity = Vector3.zero;
-        verticalVelocity = 0f;
+        if (IsDashing) EndDash();
+        HorizontalVelocity = Vector3.zero; // no leftover speed after the teleport
+        VerticalVelocity = 0f;
     }
 
     // =====================================================================================
-    // Helpers
+    // HELPERS (small tools used by the code above)
     // =====================================================================================
 
-    private bool HasMoveInput => moveDirection.sqrMagnitude > InputDeadzoneSqr;
-
-    private static bool IsBuffered(float pressedTime, float windowSeconds) => Time.time - pressedTime <= windowSeconds;
-
-    // From v^2 = 2 * g * h  ->  v = sqrt(2 * g * h): "how fast to leave the ground to reach height h".
-    private float JumpSpeed(float heightMeters) => Mathf.Sqrt(2f * gravity * heightMeters);
-
-    private static Vector3 Flatten(Vector3 direction)
+    // True if a button was pressed less than windowSeconds ago. Used by UpdateJump, UpdateDash and the TryConsume functions.
+    private bool IsPressRecent(float pressedTime, float windowSeconds)
     {
-        direction.y = 0f;
-        return direction.sqrMagnitude > InputDeadzoneSqr ? direction.normalized : Vector3.zero;
+        return Time.time - pressedTime <= windowSeconds; // NegativeInfinity (no press) gives a huge number, so it's always false
     }
 
-    private void LaunchInternal(float heightMeters, Vector3? newHorizontalVelocity)
+    // The upward speed needed to reach a height. From physics: v = square root of (2 x gravity x height).
+    // Used by Jump and DoLaunch.
+    private float JumpSpeed(float heightMeters)
     {
-        if (isDead) return;
+        return Mathf.Sqrt(2f * gravity * heightMeters);
+    }
 
-        if (isDashing) EndDash();
-        verticalVelocity = JumpSpeed(heightMeters);
+    // Removes the up/down part of a direction and makes it length 1 (or zero if nothing is left).
+    // Used by ReadMoveInput for the camera directions.
+    private Vector3 Flatten(Vector3 direction)
+    {
+        direction.y = 0f;                                    // remove up/down
+        if (direction.sqrMagnitude < 0.0001f) return Vector3.zero; // straight up/down: no flat direction
+        return direction.normalized;                         // length 1
+    }
 
-        if (newHorizontalVelocity.HasValue)
+    // Shared code of both Launch functions.
+    private void DoLaunch(float heightMeters, bool setHorizontal, Vector3 newHorizontalVelocity)
+    {
+        if (IsDead) return;
+
+        if (IsDashing) EndDash();                 // a launch cancels a dash
+        VerticalVelocity = JumpSpeed(heightMeters); // throw upward
+
+        if (setHorizontal) // the two-value Launch also replaces the sideways speed
         {
-            Vector3 horizontal = newHorizontalVelocity.Value;
-            horizontal.y = 0f;
-            horizontalVelocity = horizontal;
+            newHorizontalVelocity.y = 0f;               // sideways only
+            HorizontalVelocity = newHorizontalVelocity;
         }
 
-        jumpCutAvailable = false;   // a launch always reaches its full height
-        lastJumpWasAirJump = false;
-        restartAnimation = true;
+        jumpCutAvailable = false;   // letting go of jump must NOT shorten a launch: it always reaches full height
+        lastJumpWasAirJump = false; // play the normal Jump animation
+        restartAnimation = true;    // restart it (each stomp bounce plays it again)
     }
 
+    // Throws an invisible ball down from our feet and returns true if it hits flat-enough ground.
+    // extraDistance = how much further than normal to look (WillLandBeforeBufferEnds looks further ahead).
+    // This is the only physics query this script does each frame.
     private bool CastGround(float extraDistance)
     {
-        // The CharacterController's size scales with the object (a level may scale the player), so the probe must too.
+        // The CharacterController's size grows with the object's scale, so the ball must grow too.
         float scale = transform.lossyScale.y;
-        float radius = controller.radius * scale;
-        float castRadius = radius * GroundCheckRadiusScale;
-        Vector3 bottomSphereCenter = transform.TransformPoint(controller.center)
-                                     + Vector3.down * (controller.height * 0.5f * scale - radius);
-        float distance = (radius - castRadius) + controller.skinWidth * scale + groundCheckDistance + extraDistance;
+        float radius = controller.radius * scale;   // the capsule's real radius
+        float castRadius = radius * 0.9f;           // the ball is slightly thinner than the capsule, so walls beside us don't count as ground
 
-        if (!Physics.SphereCast(bottomSphereCenter, castRadius, Vector3.down, out RaycastHit hit,
-                distance, groundMask, QueryTriggerInteraction.Ignore))
-        {
-            return false;
-        }
+        Vector3 capsuleCenter = transform.TransformPoint(controller.center);              // the middle of the capsule, in the world
+        float centerToBottomSphere = controller.height * 0.5f * scale - radius;          // from the middle down to the center of the round bottom
+        Vector3 start = capsuleCenter + Vector3.down * centerToBottomSphere;             // the ball starts at the capsule's round bottom
 
-        return Vector3.Angle(hit.normal, Vector3.up) <= controller.slopeLimit;
+        float distance = (radius - castRadius) + controller.skinWidth * scale + groundCheckDistance + extraDistance; // how far down to look
+
+        RaycastHit hit; // filled with what the ball hit
+        bool hitSomething = Physics.SphereCast(start, castRadius, Vector3.down, out hit, distance, groundMask, QueryTriggerInteraction.Ignore); // triggers (pickups, zones) are ignored
+        if (!hitSomething) return false; // nothing below us
+
+        return Vector3.Angle(hit.normal, Vector3.up) <= controller.slopeLimit; // only ground flatter than the CharacterController's slope limit counts
     }
 
-    private void SetUpAnimator()
+    // Turns an animation name into its number, and warns once if the Animator Controller doesn't have it. Called in Start.
+    private int GetStateHash(string stateName)
     {
-        if (animator == null)
+        int hash = Animator.StringToHash(stateName); // name -> number (done once, so Update never works with strings)
+
+        if (animator != null && animator.runtimeAnimatorController != null && !animator.HasState(0, hash))
         {
-            // Prefer the model's Animator (a child); fall back to one on this object.
-            foreach (Animator candidate in GetComponentsInChildren<Animator>())
-            {
-                if (candidate.gameObject == gameObject) continue;
-                animator = candidate;
-                break;
-            }
-            if (animator == null) animator = GetComponent<Animator>();
+            Debug.LogWarning(name + ": the Animator Controller has no state called '" + stateName + "', so that animation won't play.", this);
         }
 
-        if (animator == null)
+        return hash;
+    }
+
+    // Finds the model's Animator and prepares it. Called in Awake.
+    private void SetUpAnimator()
+    {
+        if (animator == null) // not dragged in: search for it
         {
-            Debug.LogWarning($"{name}: no Animator found on the model, so the player moves without animations.", this);
+            Animator[] found = GetComponentsInChildren<Animator>(); // every Animator on us and our children (done once, here)
+            for (int i = 0; i < found.Length; i++)
+            {
+                if (found[i].gameObject == gameObject) continue; // prefer the model (a child) over this object
+                animator = found[i];
+                break;                                           // first child Animator is enough
+            }
+            if (animator == null) animator = GetComponent<Animator>(); // no child had one: try this object
+        }
+
+        if (animator == null) // still nothing
+        {
+            Debug.LogWarning(name + ": no Animator found on the model, so the player moves without animations.", this);
             return;
         }
 
-        if (animatorController != null) animator.runtimeAnimatorController = animatorController;
+        if (animatorController != null) animator.runtimeAnimatorController = animatorController; // put our controller on it, if one was given
 
-        // This script moves the player. If the animation moved it too (root motion), the two would fight.
-        animator.applyRootMotion = false;
+        animator.applyRootMotion = false; // this script moves the player; if the animation moved it too, the two would fight
     }
 
+    // Gives each button default keys, but only if none were set in the Inspector. Called in Awake.
     private void AddDefaultBindings()
     {
-        if (moveAction.bindings.Count == 0)
+        if (moveAction.bindings.Count == 0) // no move keys set
         {
-            moveAction.AddCompositeBinding("2DVector")
+            moveAction.AddCompositeBinding("2DVector") // 4 keys combined into one (x, y) value
                 .With("Up", "<Keyboard>/w").With("Down", "<Keyboard>/s")
                 .With("Left", "<Keyboard>/a").With("Right", "<Keyboard>/d");
-            moveAction.AddCompositeBinding("2DVector")
+            moveAction.AddCompositeBinding("2DVector") // the arrow keys too
                 .With("Up", "<Keyboard>/upArrow").With("Down", "<Keyboard>/downArrow")
                 .With("Left", "<Keyboard>/leftArrow").With("Right", "<Keyboard>/rightArrow");
-            moveAction.AddBinding("<Gamepad>/leftStick");
+            moveAction.AddBinding("<Gamepad>/leftStick"); // and the gamepad stick
         }
 
-        AddBindingsIfEmpty(jumpAction, "<Keyboard>/space", "<Gamepad>/buttonSouth");
-        AddBindingsIfEmpty(sprintAction, "<Keyboard>/leftShift", "<Gamepad>/leftStickPress");
-        AddBindingsIfEmpty(dashAction, "<Keyboard>/q", "<Gamepad>/buttonEast");
-        AddBindingsIfEmpty(attackAction, "<Mouse>/leftButton", "<Keyboard>/j", "<Gamepad>/buttonWest");
-    }
+        if (jumpAction.bindings.Count == 0)
+        {
+            jumpAction.AddBinding("<Keyboard>/space");
+            jumpAction.AddBinding("<Gamepad>/buttonSouth");
+        }
 
-    private static void AddBindingsIfEmpty(InputAction action, params string[] paths)
-    {
-        if (action.bindings.Count > 0) return;
-        foreach (string path in paths) action.AddBinding(path);
+        if (sprintAction.bindings.Count == 0)
+        {
+            sprintAction.AddBinding("<Keyboard>/leftShift");
+            sprintAction.AddBinding("<Gamepad>/leftStickPress");
+        }
+
+        if (dashAction.bindings.Count == 0)
+        {
+            dashAction.AddBinding("<Keyboard>/q");
+            dashAction.AddBinding("<Gamepad>/buttonEast");
+        }
+
+        if (attackAction.bindings.Count == 0)
+        {
+            attackAction.AddBinding("<Mouse>/leftButton");
+            attackAction.AddBinding("<Keyboard>/j");
+            attackAction.AddBinding("<Gamepad>/buttonWest");
+        }
     }
 }

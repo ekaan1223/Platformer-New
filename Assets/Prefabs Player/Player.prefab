@@ -158,10 +158,10 @@ MonoBehaviour:
     m_Flags: 0
   walkSpeed: 5
   sprintSpeed: 8
-  groundAcceleration: 18
-  groundDeceleration: 24
-  airAcceleration: 10
-  airDeceleration: 3
+  groundAcceleration: 70
+  groundDeceleration: 90
+  airAcceleration: 40
+  airDeceleration: 25
   faceCameraDirection: 1
   turnSpeed: 720
   jumpHeight: 1

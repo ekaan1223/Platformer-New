@@ -191,7 +191,7 @@ public class JumpPad : MonoBehaviour
     {
         float gravity = 20f;
         PlayerController player = FindFirstObjectByType<PlayerController>();
-        if (player != null) gravity = player.Gravity;
+        if (player != null) gravity = player.gravity;
 
         Vector3 flat = transform.forward;
         flat.y = 0f;
