@@ -50,7 +50,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -947854281186570357, guid: 1a2336e8af20ebb48bebeb656dc2e94c, type: 3}
       propertyPath: m_Name
-      value: MemoryBalV5
+      value: SmallMemory
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -93,7 +93,7 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.25
+  m_Radius: 1
   m_Center: {x: -0.00000023841858, y: 0, z: -0.00000011920929}
 --- !u!114 &3307505753893024435
 MonoBehaviour:

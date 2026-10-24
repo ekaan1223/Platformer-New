@@ -62,6 +62,15 @@ public class JumpPad : MonoBehaviour
     [SerializeField, Range(0.1f, 1f)] private float squashScale = 0.5f;
     [SerializeField, Min(0.01f)] private float squashSeconds = 0.25f;
 
+    [Header("Sound")]
+    [Tooltip("Played once on every launch. Empty = silent.")]
+    [SerializeField] private AudioClip launchSound;
+    [SerializeField, Range(0f, 1f)] private float launchVolume = 0.8f;
+    [Tooltip("Each launch picks a random pitch in this range, so repeated bounces don't sound identical. 1-1 = always the same.")]
+    [SerializeField] private Vector2 launchPitchRange = new Vector2(0.95f, 1.05f);
+    [Tooltip("1 = 3D (quieter when the camera is far away). 0 = always the same volume.")]
+    [SerializeField, Range(0f, 1f)] private float launchSpatialBlend = 1f;
+
     [Header("Events (hook sound / particles here)")]
     [SerializeField] private UnityEvent onLaunch;
 
@@ -70,6 +79,7 @@ public class JumpPad : MonoBehaviour
     private float playerSeenTime = float.NegativeInfinity;
     private Vector3 visualStartScale;
     private Coroutine squashRoutine;
+    private AudioSource audioSource;
 
     /// <summary>Change the height from other scripts (a switch, a boss phase...).</summary>
     public float LaunchHeightMeters
@@ -85,6 +95,14 @@ public class JumpPad : MonoBehaviour
         Collider zone = GetComponent<Collider>();
         if (zone == null || !zone.isTrigger)
             Debug.LogWarning($"{name}: the pad needs a Collider with 'Is Trigger' ON (add a Box Collider and tick Is Trigger).", this);
+
+        // Uses an AudioSource already on the pad (for your own mixer / range settings), or adds one.
+        if (launchSound != null)
+        {
+            if (!TryGetComponent(out audioSource)) audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+            audioSource.spatialBlend = launchSpatialBlend;
+        }
     }
 
     private void OnTriggerEnter(Collider other) => HandleTouch(other);
@@ -141,14 +159,20 @@ public class JumpPad : MonoBehaviour
     {
         nextAllowedTime = Time.time + cooldownSeconds;
 
-        // Holding jump = the higher bounce.
+        // Holding jump = the higher bounce. Max: holding must never give LESS than the normal height.
         bool holding = allowHoldBonus && holdJumpToBounceHigher && player.JumpHeld;
-        float height = holding ? launchHeightHoldingJumpMeters : launchHeightMeters;
+        float height = holding ? Mathf.Max(launchHeightHoldingJumpMeters, launchHeightMeters) : launchHeightMeters;
 
         Vector3 push = transform.forward;
         push.y = 0f;
         push = push.sqrMagnitude > 0.0001f ? push.normalized * forwardPushMetersPerSecond : Vector3.zero;
         player.Launch(height, keepPlayerMomentum ? player.HorizontalVelocity + push : push);
+
+        if (audioSource != null)
+        {
+            audioSource.pitch = Random.Range(launchPitchRange.x, launchPitchRange.y);
+            audioSource.PlayOneShot(launchSound, launchVolume);
+        }
 
         onLaunch?.Invoke();
 
