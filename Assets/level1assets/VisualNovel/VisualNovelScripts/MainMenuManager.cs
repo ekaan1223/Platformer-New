@@ -26,6 +26,12 @@ public class NewMonoBehaviourScript : MonoBehaviour
        
     }
 
+    public void NewGame()
+    {
+        PlayerPrefs.DeleteAll();
+        PlayerPrefs.Save();
+        SceneManager.LoadScene("Level 1.1");
+    }
     public void QuitGame()
     {
         Application.Quit();
