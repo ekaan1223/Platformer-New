@@ -96,6 +96,23 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     public float idleSpeedThreshold = 0.1f;  // below this speed (m/s) on the ground the Idle animation plays
     public float hitAnimationSeconds = 0.4f; // how long the Hit animation plays after taking damage
 
+    [Header("Sounds (one per animation, empty = silent)")]
+    [Range(0f, 1f)]
+    public float soundVolume = 1f;  // volume of every player sound
+    // These LOOP for as long as their animation plays (use footsteps, wind, a climbing loop...):
+    public AudioClip idleSound;     // plays while standing still
+    public AudioClip walkSound;     // plays while walking
+    public AudioClip runSound;      // plays while sprinting
+    public AudioClip fallSound;     // plays while falling
+    public AudioClip climbSound;    // plays while on a ladder
+    // These play ONCE when their animation starts:
+    public AudioClip jumpSound;     // the normal jump (and jump pads / stomp bounces)
+    public AudioClip doubleJumpSound; // the jump in the air
+    public AudioClip dashSound;     // the dash
+    public AudioClip attackSound;   // each sword swing
+    public AudioClip hitSound;      // taking damage
+    public AudioClip deathSound;    // dying
+
     // =====================================================================================
     // STATE OTHER SCRIPTS CAN READ
     // [System.NonSerialized] = not shown in the Inspector and not saved: these are live values, rebuilt while playing.
@@ -179,6 +196,11 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private int currentAnimation;     // the hash of the animation playing now, so we only tell the Animator when it CHANGES
     private bool restartAnimation;    // true = play the animation from the start even if it is the same one (second swing, second jump)
 
+    // Sound. Two speakers, so a one-time sound (jump) doesn't cut off the looping one (footsteps) and the other way around.
+    private AudioSource loopSource;    // plays the looping sounds (walk, run...). Made in Awake
+    private AudioSource oneShotSource; // plays the one-time sounds (jump, dash...). Made in Awake
+    private int currentSound;          // the animation whose sound we played last, so each sound starts only once
+
     // =====================================================================================
     // UNITY FUNCTIONS (Unity calls these by itself)
     // =====================================================================================
@@ -202,6 +224,14 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         }
 
         if (GetComponent<PlayerStomp>() == null) gameObject.AddComponent<PlayerStomp>(); // stomping lives in its own script (PlayerStomp); add it if the player doesn't have it yet
+
+        loopSource = gameObject.AddComponent<AudioSource>();    // the speaker for looping sounds
+        loopSource.loop = true;                                 // walking sounds repeat until the animation changes
+        loopSource.playOnAwake = false;                         // silent until UpdateSound starts it
+        loopSource.volume = soundVolume;                        // the volume from the Inspector
+        oneShotSource = gameObject.AddComponent<AudioSource>(); // the speaker for one-time sounds
+        oneShotSource.playOnAwake = false;                      // silent until UpdateSound uses it
+        oneShotSource.volume = soundVolume;                     // the volume from the Inspector
 
         SetUpAnimator();      // find the Animator and prepare it (see the Helpers section)
         AddDefaultBindings(); // give every button default keys if none were set in the Inspector
@@ -606,12 +636,21 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
 
     private void UpdateAnimation()
     {
-        if (animator == null || animator.runtimeAnimatorController == null) return; // nothing to animate
-
         int next = ChooseAnimation(); // which animation should play now?
+        UpdateSound(next);            // play its sound (done first, so sounds work even without an Animator or a state)
+
+        if (animator == null || animator.runtimeAnimatorController == null) // nothing to animate
+        {
+            restartAnimation = false; // the restart request is handled (by the sound), so it doesn't repeat every frame
+            return;
+        }
 
         if (next == currentAnimation && !restartAnimation) return; // same as before: do NOTHING (this is what happens on most frames, so it's cheap)
-        if (!animator.HasState(0, next)) return; // the Animator Controller doesn't have this state: skip it instead of filling the Console with errors
+        if (!animator.HasState(0, next)) // the Animator Controller doesn't have this state: skip it instead of filling the Console with errors
+        {
+            restartAnimation = false; // forget the restart request, so its sound doesn't repeat every frame
+            return;
+        }
 
         if (next == currentAnimation) animator.Play(next, 0, 0f);          // same move again (second swing, stomp bounce): restart it from 0
         else animator.CrossFadeInFixedTime(next, crossFadeSeconds, 0);     // a different move: blend into it smoothly
@@ -645,6 +684,46 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         if (HorizontalVelocity.sqrMagnitude < minSpeedSqr) return idleHash; // almost not moving
         if (IsSprinting) return runHash;
         return walkHash;
+    }
+
+    // Plays the sound of an animation when that animation starts. Called by UpdateAnimation every frame.
+    private void UpdateSound(int animation)
+    {
+        if (animation == currentSound && !restartAnimation) return; // same animation as last frame: its sound is already playing
+        currentSound = animation;                                  // remember it, so it starts only once
+
+        AudioClip clip = GetSound(animation); // the clip from the Inspector slot (null = empty slot)
+        bool loops = animation == idleHash || animation == walkHash || animation == runHash
+                     || animation == fallHash || animation == climbHash; // these sounds repeat; the others play once
+
+        if (loops)
+        {
+            loopSource.clip = clip;           // swap to the new loop (e.g. walk -> run)
+            if (clip != null) loopSource.Play(); // start it
+            else loopSource.Stop();           // empty slot: silence
+        }
+        else
+        {
+            loopSource.Stop();                                   // a jump, dash, swing... stops the footsteps
+            if (clip != null) oneShotSource.PlayOneShot(clip);   // play it once (it doesn't cut off a sound already playing)
+        }
+    }
+
+    // Returns the Inspector sound slot that belongs to an animation. Used by UpdateSound.
+    private AudioClip GetSound(int animation)
+    {
+        if (animation == idleHash) return idleSound;
+        if (animation == walkHash) return walkSound;
+        if (animation == runHash) return runSound;
+        if (animation == fallHash) return fallSound;
+        if (animation == climbHash) return climbSound;
+        if (animation == jumpHash) return jumpSound;
+        if (animation == doubleJumpHash) return doubleJumpSound;
+        if (animation == dashHash) return dashSound;
+        if (animation == attackHash) return attackSound;
+        if (animation == hitHash) return hitSound;
+        if (animation == deathHash) return deathSound;
+        return null; // an animation without a slot: no sound
     }
 
     // =====================================================================================
