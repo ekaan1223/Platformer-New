@@ -1,3 +1,4 @@
+using Unity.VisualScripting.Antlr3.Runtime;
 using UnityEngine;
 
 public class Sett : MonoBehaviour
@@ -24,7 +25,6 @@ public class Sett : MonoBehaviour
         CloseAllScreens();
         if (PauseScreen != null)
             PauseScreen.SetActive(isPaused);
-
         Time.timeScale = isPaused ? 0f : 1f;
     }
 
@@ -32,10 +32,10 @@ public class Sett : MonoBehaviour
     public void OpenMainMenuSettings()
     {
         CloseAllScreens();
-        if (PauseScreen != null)
-        {
-            PauseScreen.SetActive(true);
-        }
+        //if (PauseScreen != null)
+        //{
+          //  PauseScreen.SetActive(true);
+        //}
         //if (SettingsScreen != null)
         //{
         //    SettingsScreen.SetActive(true);
@@ -43,13 +43,13 @@ public class Sett : MonoBehaviour
     }
     public void OpenSettingsFromPause()
     {
+        CloseAllScreens();
         if (SettingsScreen != null)
             SettingsScreen.SetActive(true);
-
-        OpenSoundScreen();
     }
     void CloseAllScreens()
-    {
+    { 
+        if (PauseScreen != null) PauseScreen.SetActive(false);
         if (SettingsScreen != null) SettingsScreen.SetActive(false);
         if (MemoriesScreen != null) MemoriesScreen.SetActive(false);
         if (ProgressionScreen != null) ProgressionScreen.SetActive(false);
@@ -59,28 +59,24 @@ public class Sett : MonoBehaviour
 
     public void OpenMemoriesScreen()
     {
-        CloseAllScreens();
         if (SettingsScreen != null) SettingsScreen.SetActive(true);
         if (MemoriesScreen != null) MemoriesScreen.SetActive(true);
     }
 
     public void OpenProgressionScreen()
     {
-        CloseAllScreens();
         if (SettingsScreen != null) SettingsScreen.SetActive(true);
         if (ProgressionScreen != null) ProgressionScreen.SetActive(true);
     }
 
     public void OpenSoundScreen()
     {
-        CloseAllScreens();
         if (SettingsScreen != null) SettingsScreen.SetActive(true);
         if (SoundScreen != null) SoundScreen.SetActive(true);
     }
 
     public void OpenCreditsScreen()
     {
-        CloseAllScreens();
         if (SettingsScreen != null) SettingsScreen.SetActive(true);
         if (CreditsScreen != null) CreditsScreen.SetActive(true);
     }
@@ -93,8 +89,8 @@ public class Sett : MonoBehaviour
         Time.timeScale = 1f;
     }
 
-    public void QuitGame()
+    public void QuitSettings()
     {
-        Application.Quit();
+        CloseAllScreens();
     }
 }
