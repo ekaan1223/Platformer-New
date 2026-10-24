@@ -1278,10 +1278,10 @@ MonoBehaviour:
   input: {fileID: 0}
   cameraTransform: {fileID: 0}
   maxSpeedMetersPerSecond: 5
-  groundAcceleration: 18
-  groundDeceleration: 24
-  airAcceleration: 10
-  airDeceleration: 3
+  groundAcceleration: 70
+  groundDeceleration: 90
+  airAcceleration: 40
+  airDeceleration: 25
   facingMode: 1
   turnSpeedDegreesPerSecond: 720
   gravity: 20

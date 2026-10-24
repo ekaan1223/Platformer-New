@@ -237,6 +237,7 @@ public class EnemyAI : MonoBehaviour
     {
         controller = GetComponent<CharacterController>();
         stompable = GetComponent<Stompable>();
+        if (stompable == null) stompable = gameObject.AddComponent<Stompable>(); // every enemy can be stomped; PlayerStomp needs this to recognise it
         homePosition = transform.position;
         lastCheckPosition = transform.position;
         steerTimer = Random.value * steerIntervalSeconds;   // enemies don't all do their checks on the same frame

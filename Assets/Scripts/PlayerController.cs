@@ -14,7 +14,7 @@ using UnityEngine.InputSystem;    // gives us access to the new Input System (In
 // Other scripts NEVER move the player or touch the Animator themselves. They call the public functions at the
 // bottom of this file instead:
 //   - PlayerSwordAttack -> TryConsumeAttackPress, BeginAttack, EndAttack, ClearAttackPress, IsGrounded
-//   - PlayerStomp       -> Launch (the bounce), VerticalVelocity, the Landed event
+//   - PlayerStomp       -> Launch (the bounce), jumpHeight, VerticalVelocity, the Landed event (added automatically in Awake)
 //   - JumpPad           -> Launch, TryConsumeJumpPress, JumpHeld, VerticalVelocity, HorizontalVelocity, gravity
 //   - BossController    -> Teleport
 //   - Damageable (Inspector events) -> PlayHit, Die
@@ -183,6 +183,8 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         {
             cameraTransform = Camera.main.transform; // use it (Camera.main is a search, so we do it only once, here)
         }
+
+        if (GetComponent<PlayerStomp>() == null) gameObject.AddComponent<PlayerStomp>(); // stomping lives in its own script (PlayerStomp); add it if the player doesn't have it yet
 
         SetUpAnimator();      // find the Animator and prepare it (see the Helpers section)
         AddDefaultBindings(); // give every button default keys if none were set in the Inspector

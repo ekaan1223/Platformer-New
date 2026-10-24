@@ -28731,11 +28731,11 @@ MonoBehaviour:
   input: {fileID: 0}
   cameraTransform: {fileID: 1934002484}
   maxSpeedMetersPerSecond: 2.5
-  groundAcceleration: 18
-  groundDeceleration: 24
+  groundAcceleration: 70
+  groundDeceleration: 90
   sprintSpeedMetersPerSecond: 4
-  airAcceleration: 10
-  airDeceleration: 3
+  airAcceleration: 40
+  airDeceleration: 25
   facingMode: 0
   turnSpeedDegreesPerSecond: 720
   gravity: 20
