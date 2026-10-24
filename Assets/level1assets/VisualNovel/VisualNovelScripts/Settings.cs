@@ -14,17 +14,22 @@ public class Sett : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
+        if (Input.GetKeyDown(KeyCode.G))
         {
+            //isPaused = true;
             PauseGame();
         }
     }
     public void PauseGame()
     {
-        isPaused = !isPaused;
-        CloseAllScreens();
-        if (PauseScreen != null)
-            PauseScreen.SetActive(isPaused);
+        //isPaused = true;
+        //if(isPaused)
+        //{
+          //  PauseScreen.SetActive(true);
+        //}
+        //if (PauseScreen != null)
+          
+        PauseScreen.SetActive(true);
         Time.timeScale = isPaused ? 0f : 1f;
     }
 
@@ -59,24 +64,28 @@ public class Sett : MonoBehaviour
 
     public void OpenMemoriesScreen()
     {
+        CloseAllScreens();
         if (SettingsScreen != null) SettingsScreen.SetActive(true);
         if (MemoriesScreen != null) MemoriesScreen.SetActive(true);
     }
 
     public void OpenProgressionScreen()
     {
+        CloseAllScreens();
         if (SettingsScreen != null) SettingsScreen.SetActive(true);
         if (ProgressionScreen != null) ProgressionScreen.SetActive(true);
     }
 
     public void OpenSoundScreen()
     {
+        CloseAllScreens();
         if (SettingsScreen != null) SettingsScreen.SetActive(true);
         if (SoundScreen != null) SoundScreen.SetActive(true);
     }
 
     public void OpenCreditsScreen()
     {
+        CloseAllScreens();
         if (SettingsScreen != null) SettingsScreen.SetActive(true);
         if (CreditsScreen != null) CreditsScreen.SetActive(true);
     }
