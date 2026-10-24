@@ -577,7 +577,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &267043567
 RectTransform:
   m_ObjectHideFlags: 0
@@ -955,12 +955,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6f5c9e42f26924348a2d71c841d887a2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Sett
-  PauseScreen: {fileID: 0}
-  SettingsScreen: {fileID: 0}
-  MemoriesScreen: {fileID: 0}
-  ProgressionScreen: {fileID: 0}
-  SoundScreen: {fileID: 0}
-  CreditsScreen: {fileID: 0}
+  PauseScreen: {fileID: 267043566}
+  SettingsScreen: {fileID: 2071080105}
+  MemoriesScreen: {fileID: 879542614}
+  ProgressionScreen: {fileID: 495741555}
+  SoundScreen: {fileID: 80735442}
+  CreditsScreen: {fileID: 365261273}
 --- !u!4 &401854691
 Transform:
   m_ObjectHideFlags: 0
@@ -2512,7 +2512,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1158075607
 Transform:
   m_ObjectHideFlags: 0
@@ -4836,5 +4836,5 @@ SceneRoots:
   - {fileID: 1926259666}
   - {fileID: 1468559431}
   - {fileID: 624530913}
-  - {fileID: 1878599756}
   - {fileID: 401854691}
+  - {fileID: 1878599756}

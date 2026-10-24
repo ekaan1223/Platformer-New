@@ -36,10 +36,10 @@ public class Sett : MonoBehaviour
         {
             PauseScreen.SetActive(true);
         }
-        if (SettingsScreen != null)
-        {
-            SettingsScreen.SetActive(true);
-        }
+        //if (SettingsScreen != null)
+        //{
+        //    SettingsScreen.SetActive(true);
+        //}
     }
     public void OpenSettingsFromPause()
     {
