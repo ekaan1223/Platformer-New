@@ -591,8 +591,8 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1900802375}
-  - {fileID: 471427495}
   - {fileID: 1764278534}
+  - {fileID: 471427495}
   - {fileID: 2071080106}
   m_Father: {fileID: 1158075607}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -926,6 +926,56 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 367240764}
   m_CullTransparentMesh: 1
+--- !u!1 &401854689
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 401854691}
+  - component: {fileID: 401854690}
+  m_Layer: 0
+  m_Name: SettingsManagement
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &401854690
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 401854689}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6f5c9e42f26924348a2d71c841d887a2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Sett
+  PauseScreen: {fileID: 0}
+  SettingsScreen: {fileID: 0}
+  MemoriesScreen: {fileID: 0}
+  ProgressionScreen: {fileID: 0}
+  SoundScreen: {fileID: 0}
+  CreditsScreen: {fileID: 0}
+--- !u!4 &401854691
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 401854689}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 922.3003, y: 525.7, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &471427494
 GameObject:
   m_ObjectHideFlags: 0
@@ -1009,17 +1059,17 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
-        m_TargetAssemblyTypeName: Sett, Assembly-CSharp
-        m_MethodName: OpenSettingsScreen
-        m_Mode: 1
+      - m_Target: {fileID: 2071080105}
+        m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
+        m_MethodName: SetActive
+        m_Mode: 6
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
           m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
-          m_BoolArgument: 0
+          m_BoolArgument: 1
         m_CallState: 2
 --- !u!114 &471427497
 MonoBehaviour:
@@ -1350,7 +1400,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 401854690}
         m_TargetAssemblyTypeName: Sett, Assembly-CSharp
         m_MethodName: OpenSoundScreen
         m_Mode: 1
@@ -1483,13 +1533,13 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 624530911}
-        m_TargetAssemblyTypeName: 
-        m_MethodName: 
+      - m_Target: {fileID: 624530912}
+        m_TargetAssemblyTypeName: NewMonoBehaviourScript, Assembly-CSharp
+        m_MethodName: NewGame
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: 
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
@@ -1543,7 +1593,6 @@ GameObject:
   m_Component:
   - component: {fileID: 624530913}
   - component: {fileID: 624530912}
-  - component: {fileID: 624530914}
   m_Layer: 0
   m_Name: MainMenuManagement
   m_TagString: Untagged
@@ -1579,24 +1628,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &624530914
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 624530911}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6f5c9e42f26924348a2d71c841d887a2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Sett
-  PauseScreen: {fileID: 267043566}
-  SettingsScreen: {fileID: 2071080105}
-  MemoriesScreen: {fileID: 879542614}
-  ProgressionScreen: {fileID: 495741555}
-  SoundScreen: {fileID: 80735442}
-  CreditsScreen: {fileID: 365261273}
 --- !u!1 &631365149
 GameObject:
   m_ObjectHideFlags: 0
@@ -1680,9 +1711,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 624530912}
-        m_TargetAssemblyTypeName: NewMonoBehaviourScript, Assembly-CSharp
-        m_MethodName: Settings
+      - m_Target: {fileID: 401854690}
+        m_TargetAssemblyTypeName: Sett, Assembly-CSharp
+        m_MethodName: OpenMainMenuSettings
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -2279,7 +2310,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 401854690}
         m_TargetAssemblyTypeName: Sett, Assembly-CSharp
         m_MethodName: QuitGame
         m_Mode: 1
@@ -2581,7 +2612,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 401854690}
         m_TargetAssemblyTypeName: Sett, Assembly-CSharp
         m_MethodName: OpenMemoriesScreen
         m_Mode: 1
@@ -4054,7 +4085,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 401854690}
         m_TargetAssemblyTypeName: Sett, Assembly-CSharp
         m_MethodName: OpenProgressionScreen
         m_Mode: 1
@@ -4266,7 +4297,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 401854690}
         m_TargetAssemblyTypeName: Sett, Assembly-CSharp
         m_MethodName: PauseGame
         m_Mode: 1
@@ -4663,7 +4694,7 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 0}
+      - m_Target: {fileID: 401854690}
         m_TargetAssemblyTypeName: Sett, Assembly-CSharp
         m_MethodName: OpenCreditsScreen
         m_Mode: 1
@@ -4806,3 +4837,4 @@ SceneRoots:
   - {fileID: 1468559431}
   - {fileID: 624530913}
   - {fileID: 1878599756}
+  - {fileID: 401854691}
