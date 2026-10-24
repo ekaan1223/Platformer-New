@@ -17,6 +17,7 @@ using UnityEngine.InputSystem;    // gives us access to the new Input System (In
 //   - PlayerStomp       -> Launch (the bounce), jumpHeight, VerticalVelocity, the Landed event (added automatically in Awake)
 //   - JumpPad           -> Launch, TryConsumeJumpPress, JumpHeld, VerticalVelocity, HorizontalVelocity, gravity
 //   - BossController    -> Teleport
+//   - Ladder            -> StartClimbing, StopClimbing
 //   - Damageable (Inspector events) -> PlayHit, Die
 // So there is exactly ONE place that owns the speed and ONE place that decides the animation.
 //
@@ -24,7 +25,7 @@ using UnityEngine.InputSystem;    // gives us access to the new Input System (In
 //   read input -> dash -> jump -> sprint -> sideways speed -> up/down speed -> move -> ground check -> turn -> animation
 //
 // ANIMATOR SETUP: the Animator Controller only needs states with these exact names:
-//   Idle, Walk, Run, Jump, DoubleJump, Fall, Dash, Attack, Hit, Death
+//   Idle, Walk, Run, Jump, DoubleJump, Fall, Dash, Attack, Hit, Death, Climb
 // No parameters and no transitions are needed: this script blends between the states itself.
 
 [RequireComponent(typeof(CharacterController))] // Unity adds a CharacterController automatically if the object has none
@@ -105,6 +106,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     [System.NonSerialized] public bool IsDashing;             // true during a dash (set in StartDash / EndDash)
     [System.NonSerialized] public bool IsSprinting;           // true while sprinting (set in UpdateSprint)
     [System.NonSerialized] public bool IsDead;                // true after Die() was called; stops all control
+    [System.NonSerialized] public bool IsClimbing;            // true while holding on to a ladder (set in StartClimbing / StopClimbing)
     [System.NonSerialized] public bool JumpHeld;              // true while the jump button is held down (set in Update). Read by JumpPad
     [System.NonSerialized] public float VerticalVelocity;     // up/down speed in m/s (+ = up). Read by PlayerStomp and JumpPad
     [System.NonSerialized] public Vector3 HorizontalVelocity; // sideways speed (no up/down part). Read by JumpPad
@@ -122,6 +124,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private Vector3 cameraRight = Vector3.right;     // the camera's right side, flattened onto the ground
 
     // Movement
+    private Vector2 moveInput;                             // the raw keys / stick this frame (x = A/D, y = W/S), NOT turned by the camera. Used by Climb (set in ReadMoveInput)
     private Vector3 moveDirection;                         // where the player wants to walk, in world space, length 0..1 (set in ReadMoveInput)
     private bool hasMoveInput;                             // true if a move key / the stick is pressed this frame (set in ReadMoveInput)
     private float lastGroundedTime = float.NegativeInfinity; // the last time (Time.time) we were on the ground, for coyote time and the fall animation
@@ -158,6 +161,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private float attackSpeedMultiplier = 1f; // walking speed is multiplied by this while attacking
     private bool rotationLocked;              // true = don't turn (during a sword swing)
     private float hitTimeLeft;                // seconds left of the Hit animation (set in PlayHit)
+    private Ladder currentLadder;             // the ladder we are holding on to (null = none). Set by StartClimbing, cleared by StopClimbing
 
     // Animation. Unity finds Animator states fastest by a number ("hash") instead of by name,
     // so every name is turned into a number ONCE in Start and the numbers are reused every frame.
@@ -171,6 +175,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private int attackHash;
     private int hitHash;
     private int deathHash;
+    private int climbHash;
     private int currentAnimation;     // the hash of the animation playing now, so we only tell the Animator when it CHANGES
     private bool restartAnimation;    // true = play the animation from the start even if it is the same one (second swing, second jump)
 
@@ -221,6 +226,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         attackHash = GetStateHash("Attack");
         hitHash = GetStateHash("Hit");
         deathHash = GetStateHash("Death");
+        climbHash = GetStateHash("Climb");
     }
 
     // OnEnable runs when the script is switched on. Input actions only listen to keys while enabled.
@@ -251,6 +257,13 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         JumpHeld = jumpAction.IsPressed();       // remember if jump is held, for the short-hop check and for JumpPad
         ReadMoveInput();                         // 1. which way do we want to walk? (also saves the camera directions)
         if (hitTimeLeft > 0f) hitTimeLeft -= deltaTime; // count down the Hit animation timer
+
+        if (IsClimbing) // on a ladder: climbing replaces steps 2-9 below
+        {
+            Climb(deltaTime);  // move up/down the ladder
+            UpdateAnimation(); // still pick the animation (Climb)
+            return;            // skip normal walking, jumping and gravity this frame
+        }
 
         if (!IsDead) // a dead player can't start dashes or jumps
         {
@@ -295,6 +308,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     {
         Vector2 input = Vector2.zero;                   // (x = left/right, y = forward/back), zero if dead
         if (!IsDead) input = moveAction.ReadValue<Vector2>(); // read the keys / stick
+        moveInput = input;                              // keep the raw keys too, for climbing (W/S = up/down, A/D = sideways)
 
         if (cameraTransform != null) // with a camera: "forward" means "where the camera looks"
         {
@@ -526,6 +540,22 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     }
 
     // =====================================================================================
+    // LADDER
+    // =====================================================================================
+
+    // Moves us up and down the ladder. Called by Update instead of the normal movement while IsClimbing.
+    private void Climb(float deltaTime)
+    {
+        HorizontalVelocity = cameraRight * moveInput.x * currentLadder.climbSpeed; // A = left, D = right (as the camera sees it). Leaving the ladder's box sideways lets go (Ladder.OnTriggerExit), so we fall
+        VerticalVelocity = moveInput.y * currentLadder.climbSpeed; // W = up (+), S = down (-), nothing = hang still (0)
+        Vector3 velocity = HorizontalVelocity + Vector3.up * VerticalVelocity; // sideways and up/down together
+        CollisionFlags flags = controller.Move(velocity * deltaTime); // speed x time = distance; returns what we bumped into
+
+        bool reachedFloor = (flags & CollisionFlags.Below) != 0;      // our feet touched the floor while climbing down
+        if (reachedFloor && VerticalVelocity < 0f) StopClimbing(currentLadder); // at the bottom: let go, so we can walk away
+    }
+
+    // =====================================================================================
     // DASH
     // =====================================================================================
 
@@ -595,6 +625,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     {
         if (IsDead) return deathHash;          // dead beats everything
         if (hitTimeLeft > 0f) return hitHash;  // just got hit (PlayHit)
+        if (IsClimbing) return climbHash;      // holding on to a ladder
         if (isAttacking) return attackHash;    // swinging the sword (BeginAttack)
         if (IsDashing) return dashHash;        // dashing
 
@@ -654,6 +685,28 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         DoLaunch(heightMeters, true, newHorizontalVelocity); // true = replace the sideways speed
     }
 
+    // Grabs on to a ladder. Called by Ladder when we walk into it.
+    public void StartClimbing(Ladder ladder)
+    {
+        if (IsDead) return; // the dead don't climb
+
+        if (IsDashing) EndDash();      // grabbing a ladder stops a dash
+        currentLadder = ladder;        // remember which ladder (Climb reads its speed)
+        IsClimbing = true;             // Update now calls Climb instead of the normal movement
+        VerticalVelocity = 0f;         // stop falling / rising the moment we grab it
+        HorizontalVelocity = Vector3.zero; // and stop sliding sideways
+        jumpCutAvailable = false;      // a jump that was going on is over
+    }
+
+    // Lets go of a ladder. Called by Ladder when we leave it, by Climb at the bottom, and by Die.
+    public void StopClimbing(Ladder ladder)
+    {
+        if (ladder != currentLadder) return; // that's not the ladder we're on (or we're on none): ignore
+
+        currentLadder = null;                    // not holding any ladder now
+        IsClimbing = false;                      // Update goes back to normal movement and gravity
+    }
+
     // Starts a sword swing: aims, slows the player and plays the attack animation. Called by PlayerSwordAttack.
     // Returns false if the swing isn't allowed (dead).
     public bool BeginAttack(float moveSpeedMultiplier, bool lockRotation)
@@ -693,6 +746,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         if (IsDead) return; // already dead
 
         if (IsDashing) EndDash();
+        if (IsClimbing) StopClimbing(currentLadder); // let go of the ladder, so the Death animation plays and we fall
         EndAttack();
         IsSprinting = false;
         IsDead = true; // ReadMoveInput, Update, Rotate, ChooseAnimation and the public functions all check this
