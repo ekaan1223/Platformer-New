@@ -197,6 +197,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: PlayerStuffs
       objectReference: {fileID: 0}
+    - target: {fileID: 8100919861998971526, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
+      propertyPath: collectSound
+      value: 
+      objectReference: {fileID: 8300000, guid: f908c2a68549c9a47ac111f024d935b0, type: 3}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
