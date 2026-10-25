@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 743274736148554553}
   - component: {fileID: 8388033570341177900}
   - component: {fileID: 2540135847517896354}
+  - component: {fileID: 7311824405960318217}
   m_Layer: 7
   m_Name: Enemy
   m_TagString: Untagged
@@ -163,10 +164,6 @@ MonoBehaviour:
   sightAngleDegrees: 147
   closeAwarenessMeters: 0.95
   eyeHeightMeters: 0.3
-  targetHeightMeters: 0
-  sightBlockers:
-    serializedVersion: 2
-    m_Bits: 0
   chaseSpeedMetersPerSecond: 1.8
   loseSightSeconds: 3
   maxChaseDistanceMeters: 21
@@ -176,37 +173,21 @@ MonoBehaviour:
   giveUpWhenBlockedSeconds: 1.5
   turnSpeedDegreesPerSecond: 540
   gravity: 20
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 256
+  steerResponsiveness: 10
+  steerIntervalSeconds: 0.1
+  wallCheckDistanceMeters: 0.12
   avoidLedges: 1
   ledgeCheckForwardMeters: 0.2
   ledgeCheckDepthMeters: 0.3
   avoidHazards: 1
-  hazardMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
   fallDeathDepthMeters: 20
-  steerIntervalSeconds: 0.1
-  steerResponsiveness: 10
-  wallCheckDistanceMeters: 0.12
-  directionStickiness: 0.15
-  crowdAwarenessRadiusMeters: 0.8
-  crowdAvoidanceWeight: 0.8
   separationRadiusMeters: 0.4
   separationStrengthMetersPerSecond: 0.6
-  spreadAroundPlayer: 1
-  fanRadiusMeters: 0.9
-  fanSpreadAngleDegrees: 70
-  fanMaxShiftDegrees: 50
   stuckCheckSeconds: 0.5
-  stuckProgressFraction: 0.25
-  unstickSeconds: 0.5
   giveUpAfterStuckCount: 3
   contactDamage: 1
   damageCooldownSeconds: 1
   contactPaddingMeters: 0.08
-  topContactToleranceMeters: 0.1
   onPlayerSpotted:
     m_PersistentCalls:
       m_Calls: []
@@ -238,3 +219,19 @@ MonoBehaviour:
   onDied:
     m_PersistentCalls:
       m_Calls: []
+--- !u!114 &7311824405960318217
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2626565153209400200}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8e429befb1fe9a0469063f9a0a728df3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Stompable
+  stompDamage: 3
+  headWidthMultiplier: 1.88
+  headHeightMeters: 0.15
+  topContactToleranceMeters: 0.1

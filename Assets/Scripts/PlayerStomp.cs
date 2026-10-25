@@ -11,9 +11,10 @@ using UnityEngine.Events; // gives us UnityEvent (the event lists you can fill i
 //   - PlayerController : moves the player. While it moves (controller.Move), Unity calls OnControllerColliderHit below for
 //                        everything the player bumps into. We read its VerticalVelocity and jumpHeight, and ask it to Launch (the bounce).
 //                        Its Landed event tells us when the player touches the ground (ends the combo).
-//   - Stompable        : sits on every enemy that CAN be stomped (EnemyAI adds it automatically). Holds how much damage a stomp does.
+//   - Stompable        : sits on every enemy that CAN be stomped (the Enemy prefab has one). Holds how much damage a stomp does,
+//                        and builds the head zone trigger: falling into it is a stomp too (more forgiving than landing exactly on top).
 //   - Damageable       : the enemy's health. We call its TakeDamage (through the IDamageable interface).
-//   - EnemyAI          : sees that the player's feet are above its head and does NOT hurt the player in that case.
+//   - EnemyAI          : asks its Stompable "is the player stomping me?" and does NOT hurt the player in that case.
 
 public class PlayerStomp : MonoBehaviour // MonoBehaviour = a script Unity can put on an object
 {
@@ -77,11 +78,33 @@ public class PlayerStomp : MonoBehaviour // MonoBehaviour = a script Unity can p
             lastNonStompableCollider = hit.collider;                       // remember it so we don't search it again next frame
             return;
         }
+        Stomp(stompable);                                                  // landed on its top: stomp it
+    }
+
+    // Unity calls these when the player's body is inside a trigger. The enemy's head zone (made by Stompable) is one:
+    // falling into it is a stomp, even if we only clip the edge of the head.
+    private void OnTriggerEnter(Collider other) => CheckHeadZone(other);
+    private void OnTriggerStay(Collider other) => CheckHeadZone(other); // Stay: we may start falling while already inside it
+
+    private void CheckHeadZone(Collider other)
+    {
+        if (player.VerticalVelocity > 0f) return;                          // still going up: not a stomp
+        if (Time.time - lastStompTime < stompCooldownSeconds) return;      // just stomped: ignore this extra touch
+
+        Stompable stompable = other.GetComponentInParent<Stompable>();     // whose trigger is this?
+        if (stompable == null || other != stompable.HeadZone) return;      // not a head zone (a ladder, a pickup...): ignore
+
+        Stomp(stompable);
+    }
+
+    // The stomp itself: hurt the enemy, bounce, count the combo. Used by both ways of stomping above.
+    private void Stomp(Stompable stompable)
+    {
         if (!stompable.isActiveAndEnabled) return;                         // a switched-off Stompable (the boss before its finale) can't be stomped
 
         lastStompTime = Time.time;                                         // start the cooldown
 
-        IDamageable target = hit.collider.GetComponentInParent<IDamageable>(); // the enemy's health (Damageable / BossHealth)
+        IDamageable target = stompable.GetComponentInParent<IDamageable>(); // the enemy's health (Damageable / BossHealth)
         if (target != null) target.TakeDamage(stompable.stompDamage, Vector3.down); // hurt it; the hit comes from above, so the direction is down
 
         player.Launch(player.jumpHeight);                                  // bounce exactly as high as a normal jump (Launch always reaches full height)

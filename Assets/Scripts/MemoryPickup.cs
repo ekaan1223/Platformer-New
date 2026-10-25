@@ -17,6 +17,9 @@ public abstract class MemoryPickup : MonoBehaviour
     [Header("Collecting")]
     [Tooltip("The looping sound fades out over this long when collected; the object disappears afterwards.")]
     [SerializeField, Min(0f)] private float audioFadeOutSeconds = 0.6f;
+    [Tooltip("Played once when collected (a chime, a whoosh...). Empty = silent. Each prefab can have its own.")]
+    [SerializeField] private AudioClip collectSound;
+    [SerializeField, Range(0f, 1f)] private float collectVolume = 1f;
 
     [Header("Events (hook VFX / sound / UI here)")]
     [SerializeField] private UnityEvent onCollected;
@@ -70,6 +73,14 @@ public abstract class MemoryPickup : MonoBehaviour
         foreach (Renderer r in GetComponentsInChildren<Renderer>()) r.enabled = false;
 
         if (memoryAudio != null) memoryAudio.FadeOutAndStop(audioFadeOutSeconds);
+
+        // PlayClipAtPoint makes its own temporary speaker, so the sound keeps playing after this object is destroyed.
+        // Played at the camera, so it is always full volume (the camera has the AudioListener).
+        if (collectSound != null)
+        {
+            Vector3 where = Camera.main != null ? Camera.main.transform.position : transform.position;
+            AudioSource.PlayClipAtPoint(collectSound, where, collectVolume);
+        }
 
         HandleCollected();
         onCollected?.Invoke();
