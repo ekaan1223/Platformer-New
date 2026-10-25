@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 62bcc712b55e4eb4e918ec3554f81bc7, type: 3}
-  m_Name: Template
+  m_Name: NPC2Talk
   m_EditorClassIdentifier: Assembly-CSharp::DialogueData
   lines:
-  - portrait: {fileID: 21300000, guid: 711d06669704bb244a0b5d08f4358710, type: 3}
-    speakerName: Dylan Faden
-    text: "Merhaba ben dylan 10 saniye boyunca burday\u0131m"
-    voiceLine: {fileID: 8300000, guid: 0072496c7fd478b42a07d10e123085c8, type: 3}
-    secondsOnScreen: 10
+  - portrait: {fileID: 0}
+    speakerName: Woman
+    text: '"I need money."'
+    voiceLine: {fileID: 0}
+    secondsOnScreen: 2
