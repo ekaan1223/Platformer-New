@@ -19,6 +19,7 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
     [Header("UI (drag your own UI pieces in here)")]
     public GameObject dialogueBox; // the whole dialogue UI: hidden when no conversation is playing
     public Image portraitImage;    // where the portrait goes
+    public Image borderImage;      // where the background border goes (optional)
     public TMP_Text nameText;      // where the speaker's name goes (optional)
     public TMP_Text lineText;      // where the line's text goes
 
@@ -89,7 +90,7 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
 
         foreach (DialogueLine line in dialogue.lines) // each line, top to bottom
         {
-            ShowLine(line); // put the portrait, name and text on screen and start the voice line
+            ShowLine(line); // put the portrait, border, name and text on screen and start the voice line
 
             float seconds = line.secondsOnScreen;                                   // how long this line stays...
             if (seconds <= 0f && line.voiceLine != null) seconds = line.voiceLine.length; // ...0 = as long as its voice line...
@@ -124,6 +125,12 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
         {
             portraitImage.sprite = line.portrait;         // the face for this line
             portraitImage.enabled = line.portrait != null; // no portrait: hide the image instead of showing a white box
+        }
+
+        if (borderImage != null)
+        {
+            borderImage.sprite = line.border;          // the frame for this line
+            borderImage.enabled = line.border != null; // no border: hide the image instead of showing a white box
         }
 
         if (nameText != null) nameText.text = line.speakerName; // who is talking

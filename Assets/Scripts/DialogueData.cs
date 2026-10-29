@@ -3,7 +3,7 @@ using UnityEngine; // gives us access to Unity classes (ScriptableObject, Sprite
 // DIALOGUE DATA
 // One conversation, saved as an asset file in the Project (not in a scene), so it can be reused by many triggers.
 // MAKE ONE: right-click in the Project window > Create > Dialogue > Conversation, then fill in the lines.
-// Each line has its own portrait, name, text, voice line and how long it stays on screen.
+// Each line has its own portrait, border, name, text, voice line and how long it stays on screen.
 // DialogueTrigger points to one of these; DialoguePlayer shows it.
 
 [CreateAssetMenu(fileName = "NewConversation", menuName = "Dialogue/Conversation")] // adds the "Create > Dialogue > Conversation" menu entry
@@ -17,6 +17,7 @@ public class DialogueData : ScriptableObject // ScriptableObject = a script whos
 public class DialogueLine
 {
     public Sprite portrait;     // the face shown next to the text. Empty = the portrait is hidden for this line
+    public Sprite border;       // the background border/frame behind the text. Empty = the border is hidden for this line
     public string speakerName;  // the name shown above the text. Empty = no name
     [TextArea(2, 5)]
     public string text;         // what is said (the box in the Inspector grows for long lines)
