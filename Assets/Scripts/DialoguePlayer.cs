@@ -33,6 +33,11 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
     public float defaultSecondsOnScreen = 3f; // used by lines with Seconds On Screen = 0 and no voice line
 
     public bool IsPlaying { get; private set; } // true while a conversation is on screen
+    public DialogueData CurrentDialogue { get; private set; } // the conversation on screen right now (null = none). Interactable reads it
+
+    private bool pausedTheGame;   // true if the conversation on screen froze the game (so Stop knows to unfreeze it)
+    private float timeScaleBefore; // the game speed before the conversation froze it, to put it back afterwards
+    private bool showBorder = true; // false = the border stays hidden for the whole conversation (set in Play)
 
     // Awake runs once, when the object is created.
     private void Awake()
@@ -65,20 +70,34 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
         AudioListener.pause = false;         // never leave the sounds paused
     }
 
-    // Starts a conversation. Called by DialogueTrigger. Returns false if another one is already playing.
-    public bool Play(DialogueData dialogue, bool pauseGame)
+    // Starts a conversation. Called by DialogueTrigger and Interactable. Returns false if another one is already playing.
+    // showBorder = false hides the border for the whole conversation (left out = true, the border shows as usual).
+    public bool Play(DialogueData dialogue, bool pauseGame, bool showBorder = true)
     {
         if (IsPlaying || dialogue == null) return false; // busy, or nothing to play
+
+        this.showBorder = showBorder; // remember it for ShowLine ("this." = our field, not the parameter with the same name)
 
         StartCoroutine(PlayRoutine(dialogue, pauseGame)); // play the lines over the next frames
         return true;
     }
 
+    // Ends the conversation on screen right away. Called by Interactable (to replace its prompt with the real text).
+    public void Stop()
+    {
+        if (!IsPlaying) return; // nothing on screen: nothing to stop
+
+        StopAllCoroutines(); // stop PlayRoutine where it is, so no more lines show
+        Finish();            // hide the UI and unfreeze the game, just like a conversation that ended normally
+    }
+
     // Plays every line of the conversation, one after another.
     private IEnumerator PlayRoutine(DialogueData dialogue, bool pauseGame)
     {
-        IsPlaying = true;                      // no other conversation can start now
-        float timeScaleBefore = Time.timeScale; // remember the game speed, to put it back afterwards
+        IsPlaying = true;                // no other conversation can start now
+        CurrentDialogue = dialogue;      // remember which conversation is on screen
+        pausedTheGame = pauseGame;       // remember if we freeze the game, so Finish knows to unfreeze it
+        timeScaleBefore = Time.timeScale; // remember the game speed, to put it back afterwards
 
         if (pauseGame)
         {
@@ -107,15 +126,24 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
             voiceSource.Stop(); // the line is over (or skipped): its voice line stops too
         }
 
+        Finish(); // every line was shown: close the conversation
+    }
+
+    // Closes the conversation: hides the UI and unfreezes the game. Used by PlayRoutine and Stop.
+    private void Finish()
+    {
+        voiceSource.Stop(); // no voice line keeps talking after the box is gone
+
         if (dialogueBox != null) dialogueBox.SetActive(false); // hide the dialogue UI
 
-        if (pauseGame)
+        if (pausedTheGame)
         {
             Time.timeScale = timeScaleBefore; // unfreeze the game
             AudioListener.pause = false;      // un-pause the other sounds
         }
 
-        IsPlaying = false; // ready for the next conversation
+        IsPlaying = false;      // ready for the next conversation
+        CurrentDialogue = null; // nothing is on screen anymore
     }
 
     // Puts one line on screen and starts its voice line. Used by PlayRoutine.
@@ -130,7 +158,7 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
         if (borderImage != null)
         {
             borderImage.sprite = line.border;          // the frame for this line
-            borderImage.enabled = line.border != null; // no border: hide the image instead of showing a white box
+            borderImage.enabled = showBorder && line.border != null; // border turned off, or none for this line: hide the image
         }
 
         if (nameText != null) nameText.text = line.speakerName; // who is talking

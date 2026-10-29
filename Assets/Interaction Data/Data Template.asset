@@ -1,0 +1,18 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c8c342b5df3a9e44f90d8b87ec2911c3, type: 3}
+  m_Name: Data Template
+  m_EditorClassIdentifier: Assembly-CSharp::InteractionData
+  sound: {fileID: 8300000, guid: dfdca82a1b3380546ac42a184d5f4246, type: 3}
+  volume: 1
+  dialogue: {fileID: 11400000, guid: 2fe9c2c4fa0ab144ba551470fbc56083, type: 2}
+  pauseGame: 0
