@@ -44,7 +44,6 @@ GameObject:
   - component: {fileID: 473149653689628695}
   - component: {fileID: 5389613121587529564}
   - component: {fileID: 2606261202961107987}
-  - component: {fileID: 9131803245146357383}
   - component: {fileID: 4000953713465601347}
   m_Layer: 6
   m_Name: Player
@@ -285,19 +284,6 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
---- !u!114 &9131803245146357383
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8236712207290819842}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0e221a63f65f4c04185fb974dcb2d7d1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::CursorLocker
-  lockOnStart: 1
 --- !u!114 &4000953713465601347
 MonoBehaviour:
   m_ObjectHideFlags: 0

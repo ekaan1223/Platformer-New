@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2791008709754357309}
   - component: {fileID: 1834139589927826505}
-  - component: {fileID: 4457945259290655728}
+  - component: {fileID: 6359214870331274917}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -46,25 +46,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameManager
   allowRestartWhileAlive: 1
-  onPlayerDied:
-    m_PersistentCalls:
-      m_Calls: []
-  onRestarting:
-    m_PersistentCalls:
-      m_Calls: []
---- !u!114 &4457945259290655728
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7612400907896979594}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 329cbd3f05377ce42889c3d9515b31e3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::LevelRestartInput
-  gameManager: {fileID: 1834139589927826505}
   restartAction:
     m_Name: Restart
     m_Type: 1
@@ -90,3 +71,22 @@ MonoBehaviour:
       m_Action: Restart
       m_Flags: 0
     m_Flags: 0
+  onPlayerDied:
+    m_PersistentCalls:
+      m_Calls: []
+  onRestarting:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &6359214870331274917
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7612400907896979594}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0e221a63f65f4c04185fb974dcb2d7d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CursorLocker
+  lockOnStart: 1

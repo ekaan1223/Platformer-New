@@ -1,14 +1,17 @@
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Knows "is the game over?" and knows how to restart the level.
-/// It does NOT care who asks for a restart: the R key (LevelRestartInput), a UI Button, a Game Over
+/// It does NOT care who asks for a restart: the restart key (R by default, set below), a UI Button, a Game Over
 /// screen, or the player dying can all call the same public methods. That is what lets you swap the
 /// key for buttons later without touching this script.
 /// Not a singleton on purpose: wire it up in the Inspector with UnityEvents, like Damageable.
 /// Restarting reloads the scene, so the player, enemies and everything else go back to how you placed them.
+/// Keep it on its own object, NOT on the player: the player can be destroyed when it dies,
+/// and the restart key still has to work after that.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
@@ -17,6 +20,9 @@ public class GameManager : MonoBehaviour
              "OFF = only after the player has died.")]
     [SerializeField] private bool allowRestartWhileAlive = true;
 
+    [Header("Input (edit bindings directly in the Inspector, empty = R / gamepad Select)")]
+    [SerializeField] private InputAction restartAction = new InputAction("Restart", InputActionType.Button);
+
     [Header("Events (hook UI / sound / fades here later)")]
     [Tooltip("Fires once when the player dies. Later: show the Game Over panel here.")]
     [SerializeField] private UnityEvent onPlayerDied;
@@ -24,6 +30,29 @@ public class GameManager : MonoBehaviour
     [SerializeField] private UnityEvent onRestarting;
 
     public bool IsGameOver { get; private set; }
+
+    private void Awake()
+    {
+        if (restartAction.bindings.Count == 0)
+        {
+            restartAction.AddBinding("<Keyboard>/r");
+            restartAction.AddBinding("<Gamepad>/select");
+        }
+    }
+
+    private void OnEnable()
+    {
+        restartAction.performed += OnRestartPerformed;
+        restartAction.Enable();
+    }
+
+    private void OnDisable()
+    {
+        restartAction.performed -= OnRestartPerformed;
+        restartAction.Disable();
+    }
+
+    private void OnRestartPerformed(InputAction.CallbackContext context) => RestartLevel();
 
     /// <summary>Hook this to the player's Damageable -> On Died event.</summary>
     public void HandlePlayerDied()

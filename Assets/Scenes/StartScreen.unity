@@ -997,9 +997,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 401854689}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6f5c9e42f26924348a2d71c841d887a2, type: 3}
+  m_Script: {fileID: 11500000, guid: 4dd55574e5768bb40b930e94b8d3f992, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Sett
+  m_EditorClassIdentifier: Assembly-CSharp::MainMenuManager
   PauseScreen: {fileID: 267043566}
   SettingsScreen: {fileID: 2071080105}
   MemoriesScreen: {fileID: 879542614}
@@ -1234,7 +1234,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 401854690}
-        m_TargetAssemblyTypeName: Sett, Assembly-CSharp
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
         m_MethodName: OpenSettingsFromPause
         m_Mode: 1
         m_Arguments:
@@ -1366,8 +1366,8 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 624530912}
-        m_TargetAssemblyTypeName: NewMonoBehaviourScript, Assembly-CSharp
+      - m_Target: {fileID: 401854690}
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
         m_MethodName: QuitGame
         m_Mode: 1
         m_Arguments:
@@ -1575,7 +1575,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 401854690}
-        m_TargetAssemblyTypeName: Sett, Assembly-CSharp
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
         m_MethodName: OpenSoundScreen
         m_Mode: 1
         m_Arguments:
@@ -1707,8 +1707,8 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 624530912}
-        m_TargetAssemblyTypeName: NewMonoBehaviourScript, Assembly-CSharp
+      - m_Target: {fileID: 401854690}
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
         m_MethodName: NewGame
         m_Mode: 1
         m_Arguments:
@@ -1766,7 +1766,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 624530913}
-  - component: {fileID: 624530912}
   m_Layer: 0
   m_Name: MainMenuManagement
   m_TagString: Untagged
@@ -1774,19 +1773,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &624530912
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 624530911}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 4dd55574e5768bb40b930e94b8d3f992, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::NewMonoBehaviourScript
-  SettingPanel: {fileID: 631365149}
 --- !u!4 &624530913
 Transform:
   m_ObjectHideFlags: 0
@@ -1886,7 +1872,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 401854690}
-        m_TargetAssemblyTypeName: Sett, Assembly-CSharp
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
         m_MethodName: OpenSettingsFromPause
         m_Mode: 1
         m_Arguments:
@@ -2351,8 +2337,8 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 624530912}
-        m_TargetAssemblyTypeName: NewMonoBehaviourScript, Assembly-CSharp
+      - m_Target: {fileID: 401854690}
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
         m_MethodName: StartGame
         m_Mode: 1
         m_Arguments:
@@ -2485,7 +2471,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 401854690}
-        m_TargetAssemblyTypeName: Sett, Assembly-CSharp
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
         m_MethodName: QuitSettings
         m_Mode: 1
         m_Arguments:
@@ -2788,7 +2774,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 401854690}
-        m_TargetAssemblyTypeName: Sett, Assembly-CSharp
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
         m_MethodName: OpenMemoriesScreen
         m_Mode: 1
         m_Arguments:
@@ -4141,9 +4127,9 @@ MonoBehaviour:
   m_OnClick:
     m_PersistentCalls:
       m_Calls:
-      - m_Target: {fileID: 624530912}
-        m_TargetAssemblyTypeName: NewMonoBehaviourScript, Assembly-CSharp
-        m_MethodName: ContunieGame
+      - m_Target: {fileID: 401854690}
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
+        m_MethodName: ContinueGame
         m_Mode: 1
         m_Arguments:
           m_ObjectArgument: {fileID: 0}
@@ -4275,7 +4261,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 401854690}
-        m_TargetAssemblyTypeName: Sett, Assembly-CSharp
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
         m_MethodName: OpenProgressionScreen
         m_Mode: 1
         m_Arguments:
@@ -4629,7 +4615,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 401854690}
-        m_TargetAssemblyTypeName: Sett, Assembly-CSharp
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
         m_MethodName: PauseGame
         m_Mode: 1
         m_Arguments:
@@ -5026,7 +5012,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls:
       - m_Target: {fileID: 401854690}
-        m_TargetAssemblyTypeName: Sett, Assembly-CSharp
+        m_TargetAssemblyTypeName: MainMenuManager, Assembly-CSharp
         m_MethodName: OpenCreditsScreen
         m_Mode: 1
         m_Arguments:
