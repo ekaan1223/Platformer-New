@@ -59,7 +59,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     public float airDeceleration = 25f;     // how fast we slow down in the air when no key is held (low = drift and keep momentum)
 
     [Header("Rotation")]
-    public bool faceCameraDirection = true; // ON = always face where the camera looks (S walks backwards). OFF = turn toward the walking direction
+    public bool faceCameraDirection = true; // ON = while walking, face where the camera looks (S walks backwards). OFF = turn toward the walking direction
     public float turnSpeed = 720f;          // how fast the player turns (degrees per second)
 
     [Header("Jump")]
@@ -501,7 +501,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
 
         Vector3 lookDirection;                                               // where we want to face
         if (IsDashing) lookDirection = dashDirection;                        // face the dash
-        else if (faceCameraDirection && cameraTransform != null) lookDirection = cameraForward; // face where the camera looks (worked out in ReadMoveInput)
+        else if (faceCameraDirection && cameraTransform != null && hasMoveInput) lookDirection = cameraForward; // face where the camera looks (worked out in ReadMoveInput). Only while walking, so standing still you can orbit the camera freely around the player
         else lookDirection = moveDirection;                                  // face where we walk
 
         if (lookDirection.sqrMagnitude < 0.0001f) return; // no direction (standing still): keep the current rotation

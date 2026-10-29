@@ -318,6 +318,7 @@ GameObject:
   - component: {fileID: 7524364160463350969}
   - component: {fileID: 426084019593513105}
   - component: {fileID: 4558172327529246241}
+  - component: {fileID: 8730154962210438271}
   m_Layer: 0
   m_Name: FreeLook Camera
   m_TagString: Untagged
@@ -563,6 +564,24 @@ MonoBehaviour:
   cameraRadius: 0.2
   minDistance: 0
   returnSpeed: 4
+--- !u!114 &8730154962210438271
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9115741539901949683}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2d1ebb8202a14f8ebdd72bd23a4254eb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CameraAutoFollow
+  player: {fileID: 0}
+  orbit: {fileID: 1984777557816789921}
+  movingSpeed: 0.5
+  waitAfterLookInput: 1
+  heightReturnSpeed: 1.5
+  followDegreesPerSecond: 90
 --- !u!1001 &7329762499542846982
 PrefabInstance:
   m_ObjectHideFlags: 0
