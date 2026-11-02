@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7477867515818441583}
   - component: {fileID: 2682777502923913783}
+  - component: {fileID: 120138443611392450}
   m_Layer: 0
   m_Name: MemoryTracker
   m_TagString: Untagged
@@ -67,3 +68,20 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+--- !u!114 &120138443611392450
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 783145783094778454}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36dd5bcf503fa1548a952870cb23131e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::MemoryCounterUI
+  label: Memories
+  font: {fileID: 11400000, guid: f8340810af53fde4db19f637f8c03112, type: 2}
+  fontSize: 40
+  color: {r: 1, g: 1, b: 1, a: 1}
+  marginFromCorner: {x: 40, y: 30}

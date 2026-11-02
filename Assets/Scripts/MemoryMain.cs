@@ -14,6 +14,8 @@ public class MemoryMain : MemoryPickup
     [Tooltip("A semi-transparent material shown while locked. EVERY material slot of the model is replaced " +
              "with it. Make it with Surface Type = Transparent (URP) or Rendering Mode = Fade (Standard).")]
     [SerializeField] private Material lockedMaterial;
+    [Tooltip("The conversation shown when the player touches it while it is locked (e.g. 'I need the other memories first'). Empty = no text.")]
+    [SerializeField] private DialogueData lockedHint;
 
     [Header("Events (hook VFX / sound / UI here)")]
     [SerializeField] private UnityEvent onUnlocked;
@@ -54,7 +56,11 @@ public class MemoryMain : MemoryPickup
 
     protected override void HandleCollected() => Tracker.RegisterMainCollected();
 
-    protected override void HandleCollectBlocked() => onTouchedWhileLocked?.Invoke();
+    protected override void HandleCollectBlocked()
+    {
+        if (lockedHint != null && DialoguePlayer.Current != null) DialoguePlayer.Current.Play(lockedHint, false);
+        onTouchedWhileLocked?.Invoke();
+    }
 
     private void HandleMainUnlocked()
     {

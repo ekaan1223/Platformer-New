@@ -111,6 +111,7 @@ MonoBehaviour:
   audioFadeOutSeconds: 0.6
   collectSound: {fileID: 0}
   collectVolume: 1
+  collectDialogue: {fileID: 0}
   onCollected:
     m_PersistentCalls:
       m_Calls: []

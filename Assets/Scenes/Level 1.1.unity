@@ -50814,6 +50814,10 @@ PrefabInstance:
       propertyPath: m_Name
       value: SecondMemoryD
       objectReference: {fileID: 0}
+    - target: {fileID: 565395784611878288, guid: c6963b7c1804cb54fbce71cf67fda0ac, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5999314408794196853, guid: c6963b7c1804cb54fbce71cf67fda0ac, type: 3}
       propertyPath: dialogue
       value: 
@@ -57968,6 +57972,10 @@ PrefabInstance:
     - target: {fileID: 565395784611878288, guid: c6963b7c1804cb54fbce71cf67fda0ac, type: 3}
       propertyPath: m_Name
       value: MainMemoryD
+      objectReference: {fileID: 0}
+    - target: {fileID: 565395784611878288, guid: c6963b7c1804cb54fbce71cf67fda0ac, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5999314408794196853, guid: c6963b7c1804cb54fbce71cf67fda0ac, type: 3}
       propertyPath: dialogue
@@ -68981,6 +68989,10 @@ PrefabInstance:
     - target: {fileID: 565395784611878288, guid: c6963b7c1804cb54fbce71cf67fda0ac, type: 3}
       propertyPath: m_Name
       value: ThirdMemoryD
+      objectReference: {fileID: 0}
+    - target: {fileID: 565395784611878288, guid: c6963b7c1804cb54fbce71cf67fda0ac, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5999314408794196853, guid: c6963b7c1804cb54fbce71cf67fda0ac, type: 3}
       propertyPath: dialogue
@@ -89964,6 +89976,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 642834863340494164, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
+      propertyPath: collectDialogue
+      value: 
+      objectReference: {fileID: 11400000, guid: 0ea168533aed3ec44b7de1d45637c167, type: 2}
+    - target: {fileID: 688478424924530401, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
+      propertyPath: collectDialogue
+      value: 
+      objectReference: {fileID: 11400000, guid: d3af91036f3ee184092557f35dbef7e6, type: 2}
     - target: {fileID: 1456198876424306101, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
       propertyPath: m_LocalPosition.x
       value: 23.417494
@@ -90069,9 +90089,9 @@ PrefabInstance:
       value: -2.48
       objectReference: {fileID: 0}
     - target: {fileID: 7230101704208437304, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
-      propertyPath: lockedMaterial
+      propertyPath: collectDialogue
       value: 
-      objectReference: {fileID: 6344098421107312487, guid: f6a461c0b03ad174893ae9877e9a81b5, type: 3}
+      objectReference: {fileID: 11400000, guid: 0ed337433ee9b4240989cf747d74cb12, type: 2}
     - target: {fileID: 7914159227162636754, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
       propertyPath: m_LocalPosition.x
       value: -12.304
@@ -90084,6 +90104,10 @@ PrefabInstance:
       propertyPath: m_LocalPosition.z
       value: 11.753867
       objectReference: {fileID: 0}
+    - target: {fileID: 8100919861998971526, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
+      propertyPath: collectDialogue
+      value: 
+      objectReference: {fileID: 11400000, guid: 9b23f26f719368c42afdc05ba29bfda6, type: 2}
     - target: {fileID: 8848999326414114762, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
       propertyPath: m_LocalPosition.y
       value: 16.8
@@ -90148,6 +90172,10 @@ PrefabInstance:
     - target: {fileID: 565395784611878288, guid: c6963b7c1804cb54fbce71cf67fda0ac, type: 3}
       propertyPath: m_Name
       value: FirstMemoryDialogue
+      objectReference: {fileID: 0}
+    - target: {fileID: 565395784611878288, guid: c6963b7c1804cb54fbce71cf67fda0ac, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5999314408794196853, guid: c6963b7c1804cb54fbce71cf67fda0ac, type: 3}
       propertyPath: pauseGame

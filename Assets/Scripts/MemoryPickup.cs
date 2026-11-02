@@ -20,6 +20,8 @@ public abstract class MemoryPickup : MonoBehaviour
     [Tooltip("Played once when collected (a chime, a whoosh...). Empty = silent. Each prefab can have its own.")]
     [SerializeField] private AudioClip collectSound;
     [SerializeField, Range(0f, 1f)] private float collectVolume = 1f;
+    [Tooltip("The conversation shown when collected (this memory's lines). Empty = no text. Needs a DialoguePlayer in the scene.")]
+    [SerializeField] private DialogueData collectDialogue;
 
     [Header("Events (hook VFX / sound / UI here)")]
     [SerializeField] private UnityEvent onCollected;
@@ -83,11 +85,27 @@ public abstract class MemoryPickup : MonoBehaviour
         }
 
         HandleCollected();
+        ShowCollectDialogue();
         onCollected?.Invoke();
 
         // Wait for the sound to finish fading before the object (and its AudioSource) disappears.
         Destroy(gameObject, audioFadeOutSeconds);
         return true;
+    }
+
+    // The conversation lives on DialoguePlayer, so it keeps playing after this object is destroyed.
+    private void ShowCollectDialogue()
+    {
+        if (collectDialogue == null) return;
+
+        if (DialoguePlayer.Current == null)
+        {
+            Debug.LogWarning($"{name}: there is no DialoguePlayer in the scene, so its text can't show.", this);
+            return;
+        }
+
+        DialoguePlayer.Current.Stop();   // a memory's lines replace whatever is on screen (a "Press E" prompt, a hint...)
+        DialoguePlayer.Current.Play(collectDialogue, false);
     }
 
     // Reset() runs in the editor when the script is first added: sensible trigger defaults.

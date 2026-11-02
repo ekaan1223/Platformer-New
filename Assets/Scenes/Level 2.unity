@@ -154,6 +154,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1747032137816186808, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
+      propertyPath: levelId
+      value: Level2
+      objectReference: {fileID: 0}
     - target: {fileID: 2574960212966832627, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
       propertyPath: m_LocalPosition.x
       value: -12.61677
@@ -4309,6 +4313,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DialoguePlayer
   dialogueBox: {fileID: 64374489}
   portraitImage: {fileID: 1345291162}
+  borderImage: {fileID: 0}
   nameText: {fileID: 1343219454}
   lineText: {fileID: 1906148427}
   voiceSource: {fileID: 0}

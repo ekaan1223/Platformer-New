@@ -103,10 +103,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::MemoryMain
   memoryAudio: {fileID: 0}
   audioFadeOutSeconds: 0.6
+  collectSound: {fileID: 0}
+  collectVolume: 1
+  collectDialogue: {fileID: 0}
   onCollected:
     m_PersistentCalls:
       m_Calls: []
-  lockedMaterial: {fileID: 0}
+  lockedMaterial: {fileID: 2100000, guid: 2061009c204f06043b84bd4bdc6f080b, type: 2}
+  lockedHint: {fileID: 11400000, guid: e7a8992ae3484b44aa7be6f66b312b82, type: 2}
   onUnlocked:
     m_PersistentCalls:
       m_Calls: []
