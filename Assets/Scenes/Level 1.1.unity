@@ -78683,14 +78683,6 @@ PrefabInstance:
       propertyPath: m_Name
       value: SM_CharacterCaleb 1
       objectReference: {fileID: 0}
-    - target: {fileID: 5866666021909216657, guid: bdf324ab0feb9db4aace2e3786b37fe1, type: 3}
-      propertyPath: m_Controller
-      value: 
-      objectReference: {fileID: 9100000, guid: 4fc916824700cd344a29d0a4ee89726e, type: 2}
-    - target: {fileID: 5866666021909216657, guid: bdf324ab0feb9db4aace2e3786b37fe1, type: 3}
-      propertyPath: m_ApplyRootMotion
-      value: 0
-      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -92090,10 +92082,6 @@ PrefabInstance:
       propertyPath: m_LocalPosition.z
       value: -6.3461137
       objectReference: {fileID: 0}
-    - target: {fileID: 5949776051567980591, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
-      propertyPath: animatorController
-      value: 
-      objectReference: {fileID: 9100000, guid: 4fc916824700cd344a29d0a4ee89726e, type: 2}
     - target: {fileID: 6019613612104002845, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
       propertyPath: m_LocalPosition.x
       value: -3.37
