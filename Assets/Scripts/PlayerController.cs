@@ -24,9 +24,12 @@ using UnityEngine.InputSystem;    // gives us access to the new Input System (In
 // WHAT HAPPENS EVERY FRAME (see Update):
 //   read input -> dash -> jump -> sprint -> sideways speed -> up/down speed -> move -> ground check -> turn -> animation
 //
-// ANIMATOR SETUP: the Animator Controller only needs states with these exact names:
-//   Idle, Walk, Run, Jump, DoubleJump, Fall, Dash, Attack, Hit, Death, Climb
-// No parameters and no transitions are needed: this script blends between the states itself.
+// ANIMATOR SETUP: the states and the arrows between them are made by hand in the Animator window.
+// This script only sends these parameters; the arrows decide what plays. The names must match exactly:
+//   Floats:   Speed, VerticalSpeed
+//   Bools:    Grounded, Sprinting, Dashing, Climbing, Dead
+//   Triggers: Jump, DoubleJump, Attack, Hit
+// A parameter the Animator Controller doesn't have is skipped, with one warning when the game starts.
 
 [RequireComponent(typeof(CharacterController))] // Unity adds a CharacterController automatically if the object has none
 public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unity can put on an object and call every frame
@@ -92,9 +95,8 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     public float edgeSlideSpeed = 2f;        // when hanging on the very edge of something (touching it, but too far out to stand on it), push off it at this speed (m/s)
 
     [Header("Animation")]
-    public float crossFadeSeconds = 0.1f;    // how long the blend between two animations takes
-    public float idleSpeedThreshold = 0.1f;  // below this speed (m/s) on the ground the Idle animation plays
-    public float hitAnimationSeconds = 0.4f; // how long the Hit animation plays after taking damage
+    public float idleSpeedThreshold = 0.1f;  // below this speed (m/s) on the ground the Idle sound plays
+    public float hitAnimationSeconds = 0.4f; // how long the Hit sound takes priority over the others after taking damage
 
     [Header("Sounds (one per animation, empty = silent)")]
     [Range(0f, 1f)]
@@ -180,8 +182,25 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private float hitTimeLeft;                // seconds left of the Hit animation (set in PlayHit)
     private Ladder currentLadder;             // the ladder we are holding on to (null = none). Set by StartClimbing, cleared by StopClimbing
 
-    // Animation. Unity finds Animator states fastest by a number ("hash") instead of by name,
-    // so every name is turned into a number ONCE in Start and the numbers are reused every frame.
+    // Animator parameters. Unity finds them fastest by a number ("hash") instead of by name, so each name becomes a number once.
+    private static readonly int SpeedParameter = Animator.StringToHash("Speed");
+    private static readonly int VerticalSpeedParameter = Animator.StringToHash("VerticalSpeed");
+    private static readonly int GroundedParameter = Animator.StringToHash("Grounded");
+    private static readonly int SprintingParameter = Animator.StringToHash("Sprinting");
+    private static readonly int DashingParameter = Animator.StringToHash("Dashing");
+    private static readonly int ClimbingParameter = Animator.StringToHash("Climbing");
+    private static readonly int DeadParameter = Animator.StringToHash("Dead");
+    private static readonly int JumpParameter = Animator.StringToHash("Jump");
+    private static readonly int DoubleJumpParameter = Animator.StringToHash("DoubleJump");
+    private static readonly int AttackParameter = Animator.StringToHash("Attack");
+    private static readonly int HitParameter = Animator.StringToHash("Hit");
+    private static readonly string[] ParameterNames = // only used for the warning in FindAnimatorParameters
+    {
+        "Speed", "VerticalSpeed", "Grounded", "Sprinting", "Dashing", "Climbing", "Dead", "Jump", "DoubleJump", "Attack", "Hit"
+    };
+    private readonly System.Collections.Generic.HashSet<int> animatorParameters = new System.Collections.Generic.HashSet<int>(); // the parameters the Animator Controller really has (filled in Start)
+
+    // Which move we are doing, used to pick its sound. Every name is turned into a number ONCE in Start.
     private int idleHash;
     private int walkHash;
     private int runHash;
@@ -193,8 +212,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private int hitHash;
     private int deathHash;
     private int climbHash;
-    private int currentAnimation;     // the hash of the animation playing now, so we only tell the Animator when it CHANGES
-    private bool restartAnimation;    // true = play the animation from the start even if it is the same one (second swing, second jump)
+    private bool restartAnimation;    // true = play the move's sound again even if it is the same move (second swing, second jump)
 
     // Sound. Two speakers, so a one-time sound (jump) doesn't cut off the looping one (footsteps) and the other way around.
     private AudioSource loopSource;    // plays the looping sounds (walk, run...). Made in Awake
@@ -245,7 +263,9 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     // Start runs once, after every Awake, right before the first Update.
     private void Start()
     {
-        // Turn every animation name into its number, and warn if the Animator Controller is missing that state.
+        FindAnimatorParameters(); // learn which parameters the Animator Controller has, and warn about missing ones
+
+        // Turn every move's name into its number.
         idleHash = GetStateHash("Idle");
         walkHash = GetStateHash("Walk");
         runHash = GetStateHash("Run");
@@ -490,6 +510,8 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
 
         if (IsGrounded && !wasGrounded) // this is the frame we touched down
         {
+            ResetAnimatorTrigger(JumpParameter);       // a jump trigger no arrow used must not fire later, while walking
+            ResetAnimatorTrigger(DoubleJumpParameter);
             if (Landed != null) Landed(); // tell everyone listening (PlayerStomp ends its combo)
         }
     }
@@ -555,7 +577,8 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         jumpPressedTime = float.NegativeInfinity; // the press is used up, so it can't jump twice
         jumpCutAvailable = true;                // letting go of the button may now shorten this jump
         lastJumpWasAirJump = airJump;           // so ChooseAnimation picks Jump or DoubleJump
-        restartAnimation = true;                // play the jump animation from the start, even if it was already playing
+        restartAnimation = true;                // play the jump sound again, even if it was already playing
+        SetAnimatorTrigger(airJump ? DoubleJumpParameter : JumpParameter); // the Jump or DoubleJump arrow fires
     }
 
     // If we will touch the ground before the jump press expires, keep the press for a real ground jump
@@ -620,7 +643,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         dashPressedTime = float.NegativeInfinity;  // the press is used up
         VerticalVelocity = 0f;                     // stop falling / rising
         jumpCutAvailable = false;                  // the dash replaced the jump, nothing to cut
-        restartAnimation = true;                   // play the dash animation from the start
+        restartAnimation = true;                   // play the dash sound again
     }
 
     private void EndDash()
@@ -631,35 +654,47 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     }
 
     // =====================================================================================
-    // ANIMATION (the ONE place that decides what the model plays)
+    // ANIMATION (the ONE place that tells the Animator what the player is doing; the arrows decide what plays)
     // =====================================================================================
 
     private void UpdateAnimation()
     {
-        int next = ChooseAnimation(); // which animation should play now?
-        UpdateSound(next);            // play its sound (done first, so sounds work even without an Animator or a state)
+        UpdateSound(ChooseAnimation()); // play the sound of the current move
+        restartAnimation = false;       // the restart request is handled, so it doesn't repeat every frame
 
-        if (animator == null || animator.runtimeAnimatorController == null) // nothing to animate
-        {
-            restartAnimation = false; // the restart request is handled (by the sound), so it doesn't repeat every frame
-            return;
-        }
+        if (animator == null || animator.runtimeAnimatorController == null) return; // nothing to animate
 
-        if (next == currentAnimation && !restartAnimation) return; // same as before: do NOTHING (this is what happens on most frames, so it's cheap)
-        if (!animator.HasState(0, next)) // the Animator Controller doesn't have this state: skip it instead of filling the Console with errors
-        {
-            restartAnimation = false; // forget the restart request, so its sound doesn't repeat every frame
-            return;
-        }
-
-        if (next == currentAnimation) animator.Play(next, 0, 0f);          // same move again (second swing, stomp bounce): restart it from 0
-        else animator.CrossFadeInFixedTime(next, crossFadeSeconds, 0);     // a different move: blend into it smoothly
-
-        currentAnimation = next;   // remember what plays now
-        restartAnimation = false;  // the restart request is handled
+        SetAnimatorFloat(SpeedParameter, HorizontalVelocity.magnitude);
+        SetAnimatorFloat(VerticalSpeedParameter, VerticalVelocity);
+        SetAnimatorBool(GroundedParameter, IsGrounded);
+        SetAnimatorBool(SprintingParameter, IsSprinting);
+        SetAnimatorBool(DashingParameter, IsDashing);
+        SetAnimatorBool(ClimbingParameter, IsClimbing);
+        SetAnimatorBool(DeadParameter, IsDead);
     }
 
-    // Returns the animation to play. Checked from most important to least important: the first match wins.
+    // These four skip a parameter the Animator Controller doesn't have, instead of filling the Console with warnings every frame.
+    private void SetAnimatorFloat(int parameter, float value)
+    {
+        if (animatorParameters.Contains(parameter)) animator.SetFloat(parameter, value);
+    }
+
+    private void SetAnimatorBool(int parameter, bool value)
+    {
+        if (animatorParameters.Contains(parameter)) animator.SetBool(parameter, value);
+    }
+
+    private void SetAnimatorTrigger(int parameter)
+    {
+        if (animatorParameters.Contains(parameter)) animator.SetTrigger(parameter);
+    }
+
+    private void ResetAnimatorTrigger(int parameter)
+    {
+        if (animatorParameters.Contains(parameter)) animator.ResetTrigger(parameter);
+    }
+
+    // Returns the move we are doing, for its sound. Checked from most important to least important: the first match wins.
     private int ChooseAnimation()
     {
         if (IsDead) return deathHash;          // dead beats everything
@@ -799,7 +834,8 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         isAttacking = true;                                       // ApplyHorizontal, UpdateSprint and ChooseAnimation check this
         attackSpeedMultiplier = Mathf.Clamp01(moveSpeedMultiplier); // 0..1, used in ApplyHorizontal
         rotationLocked = lockRotation;                            // Rotate checks this
-        restartAnimation = true;                                  // restart the attack animation (for a second swing in a row)
+        restartAnimation = true;                                  // play the attack sound again (for a second swing in a row)
+        SetAnimatorTrigger(AttackParameter);                      // the Attack arrow fires
         return true;
     }
 
@@ -816,7 +852,8 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     {
         if (IsDead) return;
         hitTimeLeft = hitAnimationSeconds; // ChooseAnimation plays Hit while this is above 0 (counted down in Update)
-        restartAnimation = true;           // restart it if we get hit twice quickly
+        restartAnimation = true;           // play its sound again if we get hit twice quickly
+        SetAnimatorTrigger(HitParameter);  // the Hit arrow fires
     }
 
     // Stops all control and plays the Death animation. Hook it to Damageable -> On Died in the Inspector.
@@ -887,7 +924,8 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
 
         jumpCutAvailable = false;   // letting go of jump must NOT shorten a launch: it always reaches full height
         lastJumpWasAirJump = false; // play the normal Jump animation
-        restartAnimation = true;    // restart it (each stomp bounce plays it again)
+        restartAnimation = true;    // play the jump sound again (each stomp bounce plays it)
+        SetAnimatorTrigger(JumpParameter); // the Jump arrow fires
     }
 
     // Throws an invisible ball down from our feet and returns true if it hits flat-enough ground.
@@ -913,17 +951,24 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         return Vector3.Angle(hit.normal, Vector3.up) <= controller.slopeLimit; // only ground flatter than the CharacterController's slope limit counts
     }
 
-    // Turns an animation name into its number, and warns once if the Animator Controller doesn't have it. Called in Start.
+    // Turns a move's name into its number. Called in Start.
     private int GetStateHash(string stateName)
     {
-        int hash = Animator.StringToHash(stateName); // name -> number (done once, so Update never works with strings)
+        return Animator.StringToHash(stateName); // name -> number (done once, so Update never works with strings)
+    }
 
-        if (animator != null && animator.runtimeAnimatorController != null && !animator.HasState(0, hash))
+    // Remembers which parameters the Animator Controller has, and warns once about each missing one. Called in Start.
+    private void FindAnimatorParameters()
+    {
+        if (animator == null || animator.runtimeAnimatorController == null) return; // nothing to animate
+
+        foreach (AnimatorControllerParameter parameter in animator.parameters) animatorParameters.Add(parameter.nameHash);
+
+        foreach (string parameterName in ParameterNames)
         {
-            Debug.LogWarning(name + ": the Animator Controller has no state called '" + stateName + "', so that animation won't play.", this);
+            if (animatorParameters.Contains(Animator.StringToHash(parameterName))) continue;
+            Debug.LogWarning(name + ": the Animator Controller has no parameter called '" + parameterName + "', so arrows can't use it.", this);
         }
-
-        return hash;
     }
 
     // Finds the model's Animator and prepares it. Called in Awake.
