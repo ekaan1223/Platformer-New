@@ -36750,7 +36750,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -3910990755373119420, guid: 780ef9092520d3144b33c8fc32e3989b, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 9.243
+      value: 8.75
       objectReference: {fileID: 0}
     - target: {fileID: -3910990755373119420, guid: 780ef9092520d3144b33c8fc32e3989b, type: 3}
       propertyPath: m_LocalRotation.w
@@ -36791,6 +36791,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 8771091787928289351, guid: 780ef9092520d3144b33c8fc32e3989b, type: 3}
       insertIndex: -1
       addedObject: {fileID: 881930331}
+    - targetCorrespondingSourceObject: {fileID: 8771091787928289351, guid: 780ef9092520d3144b33c8fc32e3989b, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 881930332}
   m_SourcePrefab: {fileID: -4161369568681901532, guid: 780ef9092520d3144b33c8fc32e3989b, type: 3}
 --- !u!1 &881930330 stripped
 GameObject:
@@ -36812,12 +36815,43 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 2.0176735, y: 1.0022249, z: 1.3101006}
-  m_Center: {x: 1.2983656, y: 0.71168804, z: -0.15505028}
+  m_Size: {x: 2.0316687, y: 1.044961, z: 1.7573576}
+  m_Center: {x: 1.3578687, y: 0.72040987, z: 0.12165594}
+--- !u!114 &881930332
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 881930330}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b8ae71077fd886a499e594fa1c72ca0e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::JumpPad
+  bounceMode: 0
+  jumpPressBufferSeconds: 0.12
+  launchHeightMeters: 15.53
+  holdJumpToBounceHigher: 1
+  launchHeightHoldingJumpMeters: 3.5
+  forwardPushMetersPerSecond: 1
+  keepPlayerMomentum: 1
+  cooldownSeconds: 0.3
+  ignoreRisingPlayer: 1
+  visual: {fileID: 0}
+  squashScale: 0.5
+  squashSeconds: 0.25
+  launchSound: {fileID: 0}
+  launchVolume: 0.8
+  launchPitchRange: {x: 0.95, y: 1.05}
+  launchSpatialBlend: 1
+  onLaunch:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1 &885038478 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 3557694955480225060, guid: 6156cc3e84d13804f842d264350491cf, type: 3}
