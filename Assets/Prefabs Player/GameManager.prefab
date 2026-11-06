@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 2791008709754357309}
   - component: {fileID: 1834139589927826505}
   - component: {fileID: 6359214870331274917}
+  - component: {fileID: 4810275936482017563}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -90,3 +91,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CursorLocker
   lockOnStart: 1
+--- !u!114 &4810275936482017563
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7612400907896979594}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b73157f600f4314bbb04927776442b6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PauseMenu
+  pausePanel: {fileID: 0}
+  optionsPanel: {fileID: 0}

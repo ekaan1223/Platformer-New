@@ -41,10 +41,17 @@ public class MainMenuManager : MonoBehaviour // MonoBehaviour = a script Unity c
         SceneManager.LoadScene(firstLevelName); // load the first level
     }
 
-    // The "Continue" button. There is no save file yet, so for now it simply starts the first level.
+    // The "Continue" button: loads the level saved from the pause menu (PauseMenu.SaveGame), or the first level if nothing was saved.
     public void ContinueGame()
     {
-        StartGame(); // when saving is added, load the saved level here instead
+        if (!PlayerPrefs.HasKey(PauseMenu.SavedLevelKey)) // nothing was ever saved
+        {
+            StartGame(); // start from the beginning
+            return;      // stop here
+        }
+
+        Time.timeScale = 1f;                                           // never start a level frozen
+        SceneManager.LoadScene(PlayerPrefs.GetString(PauseMenu.SavedLevelKey)); // load the saved level
     }
 
     // The "New Game" button: forgets all progress, then starts the first level.
