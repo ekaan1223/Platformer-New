@@ -882,7 +882,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -3910990755373119420, guid: 14aef882d6e044a48a4d6a749842a0c3, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -4.5767727
+      value: -4.05
       objectReference: {fileID: 0}
     - target: {fileID: -3910990755373119420, guid: 14aef882d6e044a48a4d6a749842a0c3, type: 3}
       propertyPath: m_LocalPosition.y
@@ -890,7 +890,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -3910990755373119420, guid: 14aef882d6e044a48a4d6a749842a0c3, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 19.11
+      value: 18.97
       objectReference: {fileID: 0}
     - target: {fileID: -3910990755373119420, guid: 14aef882d6e044a48a4d6a749842a0c3, type: 3}
       propertyPath: m_LocalRotation.w
@@ -11206,6 +11206,63 @@ PrefabInstance:
       insertIndex: -1
       addedObject: {fileID: 2067462222}
   m_SourcePrefab: {fileID: -4161369568681901532, guid: 862cf872939ea314ba09039cbf018c98, type: 3}
+--- !u!1001 &779626842
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 7136689658330954477, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -9.691528
+      objectReference: {fileID: 0}
+    - target: {fileID: 7136689658330954477, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 9.164268
+      objectReference: {fileID: 0}
+    - target: {fileID: 7136689658330954477, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 54.251694
+      objectReference: {fileID: 0}
+    - target: {fileID: 7136689658330954477, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7136689658330954477, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7136689658330954477, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7136689658330954477, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7136689658330954477, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7136689658330954477, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7136689658330954477, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8342371458081184658, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
+      propertyPath: m_Name
+      value: Oil Drum 200L Italian Metallic Rusty.002 (9)
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: d8388d9136183d343bd4ddc0402e175f, type: 3}
 --- !u!1001 &781603185
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -16085,7 +16142,7 @@ Transform:
   m_GameObject: {fileID: 1136361376}
   serializedVersion: 2
   m_LocalRotation: {x: 0.1521238, y: -0.000000081025746, z: 0.000000012471089, w: 0.9883615}
-  m_LocalPosition: {x: -1.6986504, y: 1.6070278, z: -15.065751}
+  m_LocalPosition: {x: -18.59865, y: 21.794027, z: 12.454249}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -27244,8 +27301,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.5, y: 0.1, z: 0.5}
-  m_Center: {x: 0, y: 0.05, z: 0}
+  m_Size: {x: 4.247116, y: 1.5922079, z: 4.2399883}
+  m_Center: {x: 0.999218, y: 0.79610395, z: -1.1326475}
 --- !u!4 &1855023632 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: -3910990755373119420, guid: 780ef9092520d3144b33c8fc32e3989b, type: 3}
@@ -32519,15 +32576,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1650475508242674755, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 7.5
+      value: -9.4
       objectReference: {fileID: 0}
     - target: {fileID: 1650475508242674755, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
       propertyPath: m_LocalPosition.y
-      value: -15.577
+      value: 4.61
       objectReference: {fileID: 0}
     - target: {fileID: 1650475508242674755, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -12.3
+      value: 15.22
       objectReference: {fileID: 0}
     - target: {fileID: 1650475508242674755, guid: 0d554acf16a1a364091375d7f8e31ec1, type: 3}
       propertyPath: m_ConstrainProportionsScale
@@ -32831,3 +32888,4 @@ SceneRoots:
   - {fileID: 424654121}
   - {fileID: 1131414093}
   - {fileID: 1832576730}
+  - {fileID: 779626842}
