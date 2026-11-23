@@ -22,7 +22,7 @@ using UnityEngine.InputSystem;    // gives us access to the new Input System (In
 // So there is exactly ONE place that owns the speed and ONE place that decides the animation.
 //
 // WHAT HAPPENS EVERY FRAME (see Update):
-//   read input -> dash -> jump -> sprint -> sideways speed -> up/down speed -> move -> ground check -> turn -> animation
+//   read input -> dash -> jump -> sprint -> sideways speed -> up/down speed -> move -> ground check -> ledge lift -> turn -> animation
 //
 // ANIMATOR SETUP: the states and the arrows between them are made by hand in the Animator window.
 // This script only sends these parameters; the arrows decide what plays. The names must match exactly:
@@ -94,6 +94,14 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     public float groundCheckDistance = 0.03f; // how far below the feet we still count as "on the ground" (meters)
     public float edgeSlideSpeed = 2f;        // when hanging on the very edge of something (touching it, but too far out to stand on it), push off it at this speed (m/s)
 
+    [Header("Edge Help (smooth pushes around the edges of boxes)")]
+    public float edgePushAcceleration = 15f; // how quickly the edge push builds up and fades away (m/s gained per second). Lower = softer, less noticeable
+    [Range(0f, 1f)]
+    public float ledgeLiftHeightFraction = 0.5f; // jumping into a box's side: if its top is lower than this part of the body (0.5 = the middle), the player is lifted onto it
+    public float ledgeLiftExtraHeight = 0.02f;   // the feet stop exactly this far above the box's top, so they just clear the edge (meters)
+    public float ledgeLiftSpeed = 3f;            // how fast the player rises up the side of the box (m/s). It slows down at the end, so it never goes higher than the top
+    public float ledgeLiftForwardSpeed = 1.5f;   // while being lifted, the player moves toward the box at least this fast, so they land on top (m/s)
+
     [Header("Animation")]
     public float idleSpeedThreshold = 0.1f;  // below this speed (m/s) on the ground the Idle sound plays
     public float hitAnimationSeconds = 0.4f; // how long the Hit sound takes priority over the others after taking damage
@@ -155,7 +163,15 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private bool floorIsGround;           // is that surface on a groundMask layer?
     private bool hitCeiling;              // did the last Move hit something flat ABOVE us (a real ceiling, not just a corner)?
     private bool isOnEdge;                // true while hanging on an edge (touching something below but not standing on it)
-    private Vector3 edgePushDirection;    // which way to slide off that edge (flat, length 1)
+    private Vector3 edgePushDirection;    // which way to slide on that edge: off it, or onto the box if most of us is over it (flat, length 1)
+    private Vector3 edgePushVelocity;     // the edge push really used this frame. It eases toward the wanted push, so it never starts or stops with a jolt
+    private bool touchedWall;             // did the last Move hit a wall (something standing up straight beside us)?
+    private Vector3 wallNormal;           // the direction pointing out of that wall toward us (flat, length 1)
+    private float lastLedgeLiftTime = float.NegativeInfinity; // when the last ledge lift ended, so one bump only gets one lift
+    private bool isLedgeLifting;          // true while being lifted up the side of a box (set in TryLedgeLift, run by UpdateLedgeLift)
+    private float ledgeLiftTargetFeetY;   // the height the feet are lifted to: the box's top + ledgeLiftExtraHeight
+    private Vector3 ledgeLiftDirection;   // toward the box (flat, length 1)
+    private float ledgeLiftStartTime;     // when the lift started, so a lift that can't finish gives up
 
     // Jump
     private bool groundJumpAvailable;  // true after touching the ground; used up by the first jump
@@ -324,8 +340,10 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         UpdateSprint();                // 4. are we sprinting? (needs IsGrounded from last frame and isAttacking)
         ApplyHorizontal(deltaTime);    // 5. change the sideways speed toward the wanted speed
         ApplyVertical(deltaTime);      // 6. apply gravity to the up/down speed
+        UpdateLedgeLift(deltaTime);    // 6b. being lifted onto a box? that replaces the speeds from steps 5 and 6
         MoveCharacter(deltaTime);      // 7. actually move, using the speeds from steps 5 and 6
         UpdateGrounded();              // 8. after moving: are we on the ground now?
+        TryLedgeLift();                // 8b. jumped into the side of a low box? lift onto it (needs the wall found during the move)
         Rotate(deltaTime);             // 9. turn the player
         UpdateAnimation();             // 10. pick the animation from everything above
     }
@@ -437,11 +455,17 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         Vector3 velocity = HorizontalVelocity;   // start with the sideways speed (from ApplyHorizontal)
         velocity.y = VerticalVelocity;           // add the up/down speed (from ApplyVertical)
 
-        if (isOnEdge) velocity += edgePushDirection * edgeSlideSpeed; // hanging on an edge (found by UpdateGrounded last frame): slide off it
+        // Hanging on an edge (found by UpdateGrounded last frame): slide off it, or onto the box. The push eases in and out
+        // (MoveTowards) instead of switching on at full speed, so it feels like a gentle slide, not a shove.
+        Vector3 wantedEdgePush = Vector3.zero;                                // no edge: the push fades away
+        if (isOnEdge) wantedEdgePush = edgePushDirection * edgeSlideSpeed;    // on an edge: the push we want
+        edgePushVelocity = Vector3.MoveTowards(edgePushVelocity, wantedEdgePush, edgePushAcceleration * deltaTime);
+        velocity += edgePushVelocity;
 
         floorNormal = Vector3.zero; // forget last frame's contacts; OnControllerColliderHit fills these in again during Move
         floorIsGround = false;
         hitCeiling = false;
+        touchedWall = false;
 
         CollisionFlags flags = controller.Move(velocity * deltaTime); // speed x time = distance to move this frame. Returns what we bumped into
         // NOTE: while Move runs, Unity calls OnControllerColliderHit (below, and in PlayerStomp) for everything we touch.
@@ -449,6 +473,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         touchedBelow = (flags & CollisionFlags.Below) != 0; // something is under us (real ground OR just an edge); UpdateGrounded decides which
 
         if (hitCeiling && VerticalVelocity > 0f) VerticalVelocity = 0f; // bonked our head on a real ceiling: stop going up so we fall right away
+        if (hitCeiling) isLedgeLifting = false;                          // ...and a ledge lift can't go on through it either
         // (Only a FLAT ceiling counts. Brushing a corner with our head used to kill the whole jump; now we just slide past it.)
     }
 
@@ -458,6 +483,17 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
         if (hit.normal.y < -0.7f) hitCeiling = true; // pointing mostly down = a flat ceiling above us (MoveCharacter uses this)
+
+        if (Mathf.Abs(hit.normal.y) < 0.3f) // pointing mostly sideways = a wall beside us (TryLedgeLift uses this)
+        {
+            Vector3 flat = hit.normal;
+            flat.y = 0f;
+            if (flat.sqrMagnitude > 0.0001f)
+            {
+                wallNormal = flat.normalized;
+                touchedWall = true;
+            }
+        }
 
         if (hit.normal.y > floorNormal.y) // pointing more upward than anything else we touched this Move = our best "floor"
         {
@@ -490,6 +526,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
             if (edgePushDirection.sqrMagnitude > 0.0001f) // a perfectly flat surface has no sideways part: nothing to slide off
             {
                 edgePushDirection.Normalize(); // length 1, so edgeSlideSpeed is the real speed
+                if (CenterIsOverGround()) edgePushDirection = -edgePushDirection; // more than half of us is on top: push onto the box instead of off it
                 isOnEdge = true;               // MoveCharacter adds the push next frame
             }
         }
@@ -572,6 +609,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private void Jump(float height, bool airJump)
     {
         if (IsDashing) EndDash(); // jumping cancels a dash
+        isLedgeLifting = false;   // ...and a ledge lift (the jump takes over)
 
         VerticalVelocity = JumpSpeed(height);   // the upward speed needed to reach that height
         jumpPressedTime = float.NegativeInfinity; // the press is used up, so it can't jump twice
@@ -637,6 +675,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         dashDirection.y = 0f;                                       // keep it flat
 
         if (!IsGrounded) airDashesUsed++; // count air dashes (UpdateGrounded resets the count)
+        isLedgeLifting = false;           // a dash cancels a ledge lift
 
         IsDashing = true;                          // ApplyHorizontal / ApplyVertical / Rotate / ChooseAnimation all check this
         dashTimeLeft = dashSeconds;                // how long it lasts (counted down in UpdateDash)
@@ -880,6 +919,101 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         HorizontalVelocity = Vector3.zero; // no leftover speed after the teleport
         VerticalVelocity = 0f;
         isOnEdge = false;                  // don't carry an edge push over to the new place
+        edgePushVelocity = Vector3.zero;
+        isLedgeLifting = false;            // ...or a ledge lift
+    }
+
+    // =====================================================================================
+    // EDGE HELP
+    // =====================================================================================
+
+    // Jumped (or fell) into the side of a box whose top is lower than the middle of the body?
+    // Start a lift that raises the feet to exactly the box's top (UpdateLedgeLift does the lifting).
+    // Called by Update every frame, right after the move (it needs the wall found during that move).
+    private void TryLedgeLift()
+    {
+        if (isLedgeLifting) return;                                                     // already being lifted
+        if (IsGrounded || IsDashing || IsDead || !touchedWall || !hasMoveInput) return; // only in the air, pushing into a wall
+        if (Vector3.Dot(moveDirection.normalized, -wallNormal) < 0.5f) return;          // the stick points along the wall, not into it
+        if (Time.time - lastLedgeLiftTime < 0.25f) return;                              // just lifted: one lift per bump
+
+        float scale = transform.lossyScale.y;                          // the capsule grows with the object's scale
+        float height = controller.height * scale;
+        float radius = controller.radius * scale;
+        Vector3 center = transform.TransformPoint(controller.center);  // the middle of the capsule, in the world
+        float feetY = center.y - height * 0.5f;                        // the bottom of the capsule
+        float maxRise = height * ledgeLiftHeightFraction;              // the highest top we help with (0.5 = the middle of the body)
+
+        // Look down onto the box from just above "maxRise", a little way past the wall: is there a top within reach?
+        Vector3 probe = new Vector3(center.x, feetY + maxRise, center.z) - wallNormal * (radius + controller.skinWidth * scale + 0.05f);
+        RaycastHit top;
+        if (!Physics.Raycast(probe, Vector3.down, out top, maxRise, groundMask, QueryTriggerInteraction.Ignore)) return; // the wall is too tall (or nothing there)
+        if (Vector3.Angle(top.normal, Vector3.up) > controller.slopeLimit) return; // the top is too steep to stand on
+
+        float rise = top.point.y - feetY;   // how far the feet must go up to reach the top
+        if (rise <= 0.01f) return;          // already above it: nothing to help with
+
+        // Is there room for the whole body on top? (a low ceiling or another wall above the box = no lift)
+        Vector3 bottomSphere = new Vector3(probe.x, top.point.y + ledgeLiftExtraHeight + radius, probe.z);
+        Vector3 topSphere = bottomSphere + Vector3.up * Mathf.Max(0f, height - 2f * radius);
+        if (Physics.CheckCapsule(bottomSphere, topSphere, radius * 0.9f, groundMask, QueryTriggerInteraction.Ignore)) return;
+
+        // Start the lift. UpdateLedgeLift raises the feet to exactly this height, then moves the player onto the box.
+        isLedgeLifting = true;
+        ledgeLiftTargetFeetY = top.point.y + ledgeLiftExtraHeight;
+        ledgeLiftDirection = -wallNormal;
+        ledgeLiftStartTime = Time.time;
+        jumpCutAvailable = false;           // letting go of jump must not cancel the lift halfway
+    }
+
+    // Runs the lift started by TryLedgeLift. Called by Update every frame, after gravity and before the move.
+    // 1. Rise at ledgeLiftSpeed, slowing down at the end so the feet stop EXACTLY at the target height (no overshoot).
+    // 2. Then stay at that height while moving toward the box, until the body is over its top. Gravity then drops
+    //    the player the last couple of centimeters onto it.
+    private void UpdateLedgeLift(float deltaTime)
+    {
+        if (!isLedgeLifting) return;
+
+        if (IsDead || Time.time - ledgeLiftStartTime > 0.6f) // dead, or the lift couldn't finish (something in the way): let go
+        {
+            isLedgeLifting = false;
+            lastLedgeLiftTime = Time.time;
+            return;
+        }
+
+        // Keep moving toward the box at least a little, so the player ends up on it instead of beside it.
+        float speedTowardBox = Vector3.Dot(HorizontalVelocity, ledgeLiftDirection);
+        if (speedTowardBox < ledgeLiftForwardSpeed) HorizontalVelocity += ledgeLiftDirection * (ledgeLiftForwardSpeed - speedTowardBox);
+
+        float remaining = ledgeLiftTargetFeetY - FeetHeight(); // how far the feet still have to go up
+        if (remaining > 0.001f)
+        {
+            VerticalVelocity = Mathf.Min(ledgeLiftSpeed, remaining / deltaTime); // the last step is exactly what's left, so it never goes higher
+            return;
+        }
+
+        VerticalVelocity = 0f;                // at the right height: hold it while moving over the box
+        if (!CenterIsOverGround()) return;    // not over the top yet
+
+        isLedgeLifting = false;               // over the top: done. Gravity sets the player down next frame
+        lastLedgeLiftTime = Time.time;
+    }
+
+    // The height of the bottom of the capsule (the feet), in the world.
+    private float FeetHeight()
+    {
+        Vector3 center = transform.TransformPoint(controller.center);  // the middle of the capsule, in the world
+        return center.y - controller.height * transform.lossyScale.y * 0.5f;
+    }
+
+    // True if the ground is right under the middle of the capsule, i.e. more than half of the body is over it.
+    // Used by UpdateGrounded to decide whether an edge push goes onto the box or off it.
+    private bool CenterIsOverGround()
+    {
+        float scale = transform.lossyScale.y;
+        Vector3 center = transform.TransformPoint(controller.center);   // the middle of the capsule, in the world
+        float distance = controller.height * scale * 0.5f + controller.skinWidth * scale + groundCheckDistance + 0.05f; // middle -> just below the feet
+        return Physics.Raycast(center, Vector3.down, distance, groundMask, QueryTriggerInteraction.Ignore);
     }
 
     // =====================================================================================
@@ -914,6 +1048,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         if (IsDead) return;
 
         if (IsDashing) EndDash();                 // a launch cancels a dash
+        isLedgeLifting = false;                   // ...and a ledge lift (a jump pad or stomp bounce takes over)
         VerticalVelocity = JumpSpeed(heightMeters); // throw upward
 
         if (setHorizontal) // the two-value Launch also replaces the sideways speed

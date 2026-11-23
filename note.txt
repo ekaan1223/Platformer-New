@@ -1,0 +1,60 @@
+I'll start by checking the Demon Doll model: whether it has a skeleton the Mixamo clips can drive, how big it is, and whether the pack has its own animations. I'll also look at how your current `Enemy` prefab is built so the doll gets the same working setup.
+
+The doll has a full Unreal-style skeleton that Unity can auto-map to Humanoid, so your Mixamo clips will work on it, though it has no animations of its own. I'm checking its size and materials next, along with your current enemy and the existing Var1 prefabs.
+
+The doll is about 1 m tall, so it fits next to Caleb, and I'll build a new Demon Doll enemy prefab with the same three scripts so your Level 2 enemies stay unchanged. Checking the clips next.
+
+The doll's clips are mapped out: Walking, Unarmed Run Forward and Sword And Shield Impact need loop and bake settings, and the doll must switch to Humanoid. I'm checking its import file next.
+
+Now the enemy's Animator Controller. It uses arrows like Caleb's, with three parameters: `Speed`, plus `Attack` and `Hit` triggers.
+
+I'm adding a small script that feeds the enemy's speed to the Animator and triggers Attack and Hit, reading speed from the CharacterController since EnemyAI doesn't expose it.
+
+The prefab root now holds the enemy scripts and a 1 m CharacterController with its pivot at the feet, with the doll model as a child carrying the Animator. Attack and Hit are already wired to touch and damage.
+
+Everything is written. I'll check that my new file IDs don't collide with existing assets, and whether Unity has imported them yet.
+
+The doll's import file is set correctly. The `Rig Error` lines in the log are from an earlier import at 13:01, before my changes, and Unity hasn't re-imported since because its window isn't focused.
+
+The Demon Doll enemy is built as a new prefab: `Assets/Prefabs Player/DemonDollEnemy.prefab`. Unity hasn't imported it yet because its window wasn't focused, so I haven't seen it run. Your existing Level 2 enemies are unchanged.
+
+## What's in the prefab
+**On the root (`DemonDollEnemy`, Enemy layer):**
+
+| Component | Settings |
+|---|---|
+| `CharacterController` | 1 m tall, radius 0.25, pivot at the feet |
+| `EnemyAI` | Same tuning as your current enemy: patrol 0.8 m/s, chase 1.8 m/s, sight 4.25 m. Eye height raised to 0.8 m for the taller body |
+| `Damageable` | 3 health |
+| `Stompable` | One stomp kills |
+| `EnemyAnimation` (new script) | Drives the animations |
+
+**Child (`DemonDollModel`):** the doll with an **Animator**, using its own Humanoid avatar and the new `DemonDollEnemy.controller`.
+
+## Animations
+| State | Clip | When it plays |
+|---|---|---|
+| Idle | `Idle` | Standing still |
+| Walk | `Walking` (0.6× speed) | Patrolling (above 0.1 m/s) |
+| Run | `Unarmed Run Forward` (0.6× speed) | Chasing (above 1.3 m/s) |
+| Attack | `Sword And Shield Attack` | When it touches and damages you |
+| Hit | `Sword And Shield Impact` | When it takes damage |
+
+All are baked so the doll won't sink. Walk and Run loop, while Attack and Hit play once and return to Idle.
+
+[EnemyAnimation.cs](Assets/Scripts/EnemyAnimation.cs) reads the enemy's speed from its `CharacterController` and sends it to the Animator. Attack and Hit are already hooked to `EnemyAI`'s **On Player Hit** and `Damageable`'s **On Damaged** events.
+
+## Other changes
+- **The doll model:** set to **Humanoid** with its own avatar, so Unity maps its Unreal-style skeleton automatically, and Import Cameras turned off.
+- **Clip settings:** `Walking`, `Unarmed Run Forward` and `Sword And Shield Impact` got loop and bake settings. Nothing else in the project uses them, so Caleb is unaffected.
+
+## When you're back in Unity
+1. **Click into Unity** so it imports everything. Your Level 2 has unsaved changes, so save them first if you want to keep them.
+2. **Check the Console:** look for a red error or a rig/avatar warning on `SKM_DemonDoll_Var2`.
+3. **Place one:** drag `DemonDollEnemy` into a level and press Play. It should idle, walk its patrol, run at you, swing when it touches you, and flinch when you hit it.
+
+## What could need a fix
+- **Avatar:** I couldn't watch Unity build the doll's Humanoid avatar. If the Console shows an avatar error, select `SKM_DemonDoll_Var2.fbx`, go to **Rig**, click **Configure...**, and accept Unity's automatic mapping.
+- **Pink materials:** the doll pack also includes HDRP files. If the doll shows up pink, its materials need converting to URP.
+- **Sliding feet:** if the feet slide while walking or running, adjust the **Walk** and **Run** state speeds in `DemonDollEnemy.controller`.
+- **Death:** like your other enemy, it disappears the moment its health hits 0, so there's no death animation yet.
