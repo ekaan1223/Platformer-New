@@ -73,6 +73,7 @@ public abstract class MemoryPickup : MonoBehaviour
         collected = true;
         foreach (Collider c in colliders) c.enabled = false;
         foreach (Renderer r in GetComponentsInChildren<Renderer>()) r.enabled = false;
+        foreach (Light l in GetComponentsInChildren<Light>()) l.enabled = false;   // a glow placed on the memory goes out with it, not when the object is destroyed
 
         if (memoryAudio != null) memoryAudio.FadeOutAndStop(audioFadeOutSeconds);
 
