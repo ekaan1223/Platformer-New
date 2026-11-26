@@ -16,10 +16,10 @@ public class EnemyAnimation : MonoBehaviour   // MonoBehaviour = a script Unity 
 {
     public Animator animator; // the Animator on the enemy's model; empty = the first one on this object or its children
 
-    private static readonly int SpeedParameter = Animator.StringToHash("Speed");   // names turned into numbers once, so Update never works with strings
-    private static readonly int AttackParameter = Animator.StringToHash("Attack");
-    private static readonly int HitParameter = Animator.StringToHash("Hit");
-    private static readonly int DeadParameter = Animator.StringToHash("Dead");
+    private static int SpeedParameter = Animator.StringToHash("Speed");   // names turned into numbers once, so Update never works with strings
+    private static int AttackParameter = Animator.StringToHash("Attack");
+    private static int HitParameter = Animator.StringToHash("Hit");
+    private static int DeadParameter = Animator.StringToHash("Dead");
 
     private CharacterController controller; // the enemy's body (found in Awake)
 

@@ -33,11 +33,11 @@ public class LevelPortal : MonoBehaviour // MonoBehaviour = a script Unity can p
     // Unity calls this when something walks into the trigger box.
     private void OnTriggerEnter(Collider other)
     {
-        if (used) return;                                                 // already on the way to the next level
-        if (other.GetComponentInParent<PlayerController>() == null) return; // not the player (an enemy, a pickup...): ignore
+        if (used) return;                              // already on the way to the next level
+        if (!PlayerController.IsPlayer(other)) return; // not the player (an enemy, a pickup...): ignore
 
-        used = true;            // remember it, so it only happens once
-        onEntered?.Invoke();    // play the sounds / effects hooked up in the Inspector
+        used = true;                                   // remember it, so it only happens once
+        if (onEntered != null) onEntered.Invoke();     // play the sounds / effects hooked up in the Inspector
         StartCoroutine(LoadAfterDelay());
     }
 
@@ -46,7 +46,7 @@ public class LevelPortal : MonoBehaviour // MonoBehaviour = a script Unity can p
     {
         if (delaySeconds > 0f) yield return new WaitForSecondsRealtime(delaySeconds); // "Realtime" still counts if a dialogue froze the game
 
-        Time.timeScale = 1f;               // the next level must not start frozen (a dialogue or pause may have frozen this one)
+        GamePause.ResetAll();              // the next level must not start frozen (a dialogue or the pause menu may have frozen this one)
         SceneManager.LoadScene(sceneName); // load the level
     }
 

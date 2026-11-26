@@ -146,6 +146,10 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
 
     public event System.Action Landed; // a "shout" sent the frame we touch the ground again. PlayerStomp listens to it to end the stomp combo
 
+    // THE player of this scene (set in Awake, emptied in OnDestroy). Every other script finds the player through this,
+    // instead of searching the whole scene (enemies, the boss, the camera, pickups, doors...). null = no player (yet / any more).
+    public static PlayerController Current;
+
     // =====================================================================================
     // PRIVATE VARIABLES (only this script uses them)
     // =====================================================================================
@@ -206,27 +210,28 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private Ladder currentLadder;             // the ladder we are holding on to (null = none). Set by StartClimbing, cleared by StopClimbing
 
     // Animator parameters. Unity finds them fastest by a number ("hash") instead of by name, so each name becomes a number once.
-    private static readonly int SpeedParameter = Animator.StringToHash("Speed");
-    private static readonly int VerticalSpeedParameter = Animator.StringToHash("VerticalSpeed");
-    private static readonly int GroundedParameter = Animator.StringToHash("Grounded");
-    private static readonly int SprintingParameter = Animator.StringToHash("Sprinting");
-    private static readonly int DashingParameter = Animator.StringToHash("Dashing");
-    private static readonly int ClimbingParameter = Animator.StringToHash("Climbing");
-    private static readonly int DeadParameter = Animator.StringToHash("Dead");
-    private static readonly int JumpParameter = Animator.StringToHash("Jump");
-    private static readonly int DoubleJumpParameter = Animator.StringToHash("DoubleJump");
-    private static readonly int AttackParameter = Animator.StringToHash("Attack");
-    private static readonly int HitParameter = Animator.StringToHash("Hit");
-    private static readonly int MoveXParameter = Animator.StringToHash("MoveX");
-    private static readonly int MoveYParameter = Animator.StringToHash("MoveY");
-    private static readonly string[] ParameterNames = // only used for the warning in FindAnimatorParameters
+    // "static" = worked out once for every player, not once per object.
+    private static int SpeedParameter = Animator.StringToHash("Speed");
+    private static int VerticalSpeedParameter = Animator.StringToHash("VerticalSpeed");
+    private static int GroundedParameter = Animator.StringToHash("Grounded");
+    private static int SprintingParameter = Animator.StringToHash("Sprinting");
+    private static int DashingParameter = Animator.StringToHash("Dashing");
+    private static int ClimbingParameter = Animator.StringToHash("Climbing");
+    private static int DeadParameter = Animator.StringToHash("Dead");
+    private static int JumpParameter = Animator.StringToHash("Jump");
+    private static int DoubleJumpParameter = Animator.StringToHash("DoubleJump");
+    private static int AttackParameter = Animator.StringToHash("Attack");
+    private static int HitParameter = Animator.StringToHash("Hit");
+    private static int MoveXParameter = Animator.StringToHash("MoveX");
+    private static int MoveYParameter = Animator.StringToHash("MoveY");
+    private static string[] ParameterNames = // only used for the warning in FindAnimatorParameters
     {
         "Speed", "VerticalSpeed", "Grounded", "Sprinting", "Dashing", "Climbing", "Dead", "Jump", "DoubleJump", "Attack", "Hit", "MoveX", "MoveY"
     };
     private Vector2 moveBlend = Vector2.up; // walking direction compared to facing (x = A/D, y = W/S), smoothed. Sent as MoveX / MoveY
     private float bodyYawAmount;            // -1..1, how much of bodyTurnAngle the model is turned right now (smoothed)
     private Quaternion modelBaseRotation = Quaternion.identity; // the model's own local rotation at start; bodyTurnAngle is added on top of it
-    private readonly System.Collections.Generic.HashSet<int> animatorParameters = new System.Collections.Generic.HashSet<int>(); // the parameters the Animator Controller really has (filled in Start)
+    private System.Collections.Generic.List<int> animatorParameters = new System.Collections.Generic.List<int>(); // the parameters the Animator Controller really has (filled in Start; only about 13, so a plain list is fast enough)
 
     // Which move we are doing, used to pick its sound. Every name is turned into a number ONCE in Start.
     private int idleHash;
@@ -254,6 +259,8 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     // Awake runs once, when the object is created, before any Update.
     private void Awake()
     {
+        Current = this; // let every other script find the player (see Current above)
+
         controller = GetComponent<CharacterController>(); // find our CharacterController once and keep it (searching every frame would be slow)
 
         if (!controller.enabled) // a switched-off CharacterController can't move at all
@@ -305,6 +312,21 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         hitHash = GetStateHash("Hit");
         deathHash = GetStateHash("Death");
         climbHash = GetStateHash("Climb");
+    }
+
+    // OnDestroy runs when the player object goes away (the level unloads).
+    private void OnDestroy()
+    {
+        if (Current == this) Current = null; // the next level's player takes over
+    }
+
+    // True if this collider belongs to the player (its body, or any child of it, like the sword).
+    // Trigger zones (ladders, pickups, doors, jump pads...) use it to ask "is it the player who walked in?".
+    // It only climbs the hierarchy to the player, so it is cheaper than searching the parents for a component.
+    public static bool IsPlayer(Collider other)
+    {
+        if (Current == null || other == null) return false;    // no player in the scene, or nothing touched
+        return other.transform.IsChildOf(Current.transform);  // IsChildOf is also true for the player object itself
     }
 
     // OnEnable runs when the script is switched on. Input actions only listen to keys while enabled.
@@ -641,7 +663,8 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         jumpCutAvailable = true;                // letting go of the button may now shorten this jump
         lastJumpWasAirJump = airJump;           // so ChooseAnimation picks Jump or DoubleJump
         restartAnimation = true;                // play the jump sound again, even if it was already playing
-        SetAnimatorTrigger(airJump ? DoubleJumpParameter : JumpParameter); // the Jump or DoubleJump arrow fires
+        if (airJump) SetAnimatorTrigger(DoubleJumpParameter); // the DoubleJump arrow fires...
+        else SetAnimatorTrigger(JumpParameter);               // ...or the Jump arrow
     }
 
     // If we will touch the ground before the jump press expires, keep the press for a real ground jump
@@ -742,7 +765,8 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         bool canTurnBody = !IsDead && !IsDashing && !IsClimbing && !rotationLocked && IsGrounded && hasMoveInput;
         if (hasMoveInput) // standing still keeps the last direction, so stopping doesn't flash a different walk
         {
-            Vector2 targetMove = faceCameraDirection ? Vector2.ClampMagnitude(moveInput, 1f) : Vector2.up;
+            Vector2 targetMove = Vector2.up;                                       // the other rotation mode: always "forward"
+            if (faceCameraDirection) targetMove = Vector2.ClampMagnitude(moveInput, 1f); // camera-facing mode: the keys as they are
             moveBlend = Vector2.MoveTowards(moveBlend, targetMove, 4f * Time.deltaTime); // smoothed, so tapping keys doesn't snap the pose
         }
         SetAnimatorFloat(MoveXParameter, moveBlend.x);
@@ -750,7 +774,8 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
 
         // Diagonals (W+A, W+D, S+A, S+D) also turn the model a bit toward the walking side; straight A / D use the strafe clips instead.
         // Walking backwards flips it, so S+D turns the body so its back points down-right, where we are going.
-        float targetYaw = canTurnBody && faceCameraDirection ? Mathf.Clamp(2f * moveBlend.x * moveBlend.y, -1f, 1f) : 0f;
+        float targetYaw = 0f;                                                                    // no body turn...
+        if (canTurnBody && faceCameraDirection) targetYaw = Mathf.Clamp(2f * moveBlend.x * moveBlend.y, -1f, 1f); // ...except on a diagonal
         bodyYawAmount = Mathf.MoveTowards(bodyYawAmount, targetYaw, 4f * Time.deltaTime);
         if (animator.transform != transform)
             animator.transform.localRotation = modelBaseRotation * Quaternion.Euler(0f, bodyYawAmount * bodyTurnAngle, 0f);

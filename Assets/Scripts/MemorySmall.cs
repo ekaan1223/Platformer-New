@@ -1,10 +1,18 @@
-/// <summary>
-/// "Memory Small": collect 3 per level to unlock that level's Memory Main.
-/// Everything else (touch detection, sound, fade, removal) is inherited from MemoryPickup.
-/// </summary>
-public class MemorySmall : MemoryPickup
-{
-    protected override bool CanBeCollected => Tracker != null;
+// MEMORY SMALL
+// "Memory Small": collect them (3 per level by default) to unlock that level's Memory Main.
+// Everything else (touch detection, sound, fade, removal) is inherited from MemoryPickup.
 
-    protected override void HandleCollected() => Tracker.RegisterSmallCollected();
+public class MemorySmall : MemoryPickup // built on MemoryPickup
+{
+    // A small memory can always be collected (as long as the level has a tracker to count it).
+    protected override bool CanBeCollected
+    {
+        get { return Tracker != null; }
+    }
+
+    // Collecting it: one more for the level's counter.
+    protected override void HandleCollected()
+    {
+        Tracker.RegisterSmallCollected();
+    }
 }

@@ -33,10 +33,14 @@ public class PauseMenu : MonoBehaviour // MonoBehaviour = a script Unity can put
     [Header("Input (empty = Esc / gamepad Start)")]
     public InputAction pauseAction = new InputAction("Pause", InputActionType.Button); // press to pause / go back
 
-    public bool IsPaused { get; private set; } // true while the pause menu is open. Other scripts can read it
+    private bool isPaused; // true while the pause menu is open
 
-    private float timeScaleBefore;  // the game speed before pausing (a dialogue may already have frozen it), put back on Continue
-    private bool soundPausedBefore; // were the sounds already paused before (by a dialogue)? Put back on Continue
+    // True while the pause menu is open. Other scripts can read it (GamePause.IsMenuOpen says the same thing).
+    public bool IsPaused
+    {
+        get { return isPaused; }
+    }
+
     private CursorLocker cursorLocker; // frees the mouse for the menu and locks it again afterwards (found in Awake)
     private Transform placeholderCanvas; // the canvas the placeholder screens are built on (made only if needed)
 
@@ -61,15 +65,22 @@ public class PauseMenu : MonoBehaviour // MonoBehaviour = a script Unity can put
         MakeSureClicksWork(); // buttons need an EventSystem in the scene; add one if the level has none
     }
 
-    private void OnEnable() => pauseAction.Enable();   // start listening to the pause key
-    private void OnDisable() => pauseAction.Disable(); // stop listening
+    // OnEnable runs when the script is switched on: start listening to the pause key.
+    private void OnEnable()
+    {
+        pauseAction.Enable();
+    }
+
+    // OnDisable runs when the script is switched off (or destroyed): stop listening.
+    private void OnDisable()
+    {
+        pauseAction.Disable();
+    }
 
     // OnDestroy runs when the object goes away (e.g. the level restarts or loads while paused).
     private void OnDestroy()
     {
-        if (!IsPaused) return;       // not paused: nothing to clean up
-        Time.timeScale = 1f;         // never leave the next level frozen
-        AudioListener.pause = false; // never leave the next level silent
+        if (isPaused) GamePause.SetMenuPause(false); // never leave the next level frozen or silent
     }
 
     // Update runs every frame (even while paused: only timeScale stops, Update keeps running).
@@ -87,14 +98,10 @@ public class PauseMenu : MonoBehaviour // MonoBehaviour = a script Unity can put
     // Freezes the game and opens the pause menu.
     public void Pause()
     {
-        if (IsPaused) return; // already paused: nothing to do
+        if (isPaused) return; // already paused: nothing to do
 
-        IsPaused = true;                        // remember we are paused
-        timeScaleBefore = Time.timeScale;       // remember the game speed, to put it back on Continue
-        soundPausedBefore = AudioListener.pause; // remember if the sounds were already paused
-
-        Time.timeScale = 0f;        // freeze the game (movement, physics, animations)
-        AudioListener.pause = true; // pause every sound
+        isPaused = true;               // remember we are paused
+        GamePause.SetMenuPause(true);  // freeze the game (movement, physics, animations) and pause every sound
 
         pausePanel.SetActive(true);  // show the pause menu
         optionsPanel.SetActive(false); // start on the main page, not the options
@@ -105,18 +112,17 @@ public class PauseMenu : MonoBehaviour // MonoBehaviour = a script Unity can put
     // "Continue": closes the menu and unfreezes the game.
     public void Continue()
     {
-        if (!IsPaused) return; // not paused: nothing to do
+        if (!isPaused) return; // not paused: nothing to do
 
-        IsPaused = false;                         // not paused anymore
-        pausePanel.SetActive(false);              // hide the pause menu
-        optionsPanel.SetActive(false);            // hide the options too, just in case
-        Time.timeScale = timeScaleBefore;         // put the game speed back (still frozen if a dialogue had frozen it)
-        AudioListener.pause = soundPausedBefore;  // put the sounds back the way they were
+        isPaused = false;              // not paused anymore
+        pausePanel.SetActive(false);   // hide the pause menu
+        optionsPanel.SetActive(false); // hide the options too, just in case
+        GamePause.SetMenuPause(false); // unfreeze (the game stays frozen if a conversation still wants it)
 
         if (cursorLocker != null) cursorLocker.LockForGameplay(); // lock the mouse again for looking around
 
-        PlayerController player = FindFirstObjectByType<PlayerController>(); // the player (null if it died and was removed)
-        if (player != null) player.ClearAttackPress(); // forget the click on "Continue", so it doesn't swing the sword
+        PlayerController player = PlayerController.Current; // the player (null if there is none)
+        if (player != null) player.ClearAttackPress();       // forget the click on "Continue", so it doesn't swing the sword
     }
 
     // "Options": swaps the pause menu for the options screen.
@@ -139,7 +145,7 @@ public class PauseMenu : MonoBehaviour // MonoBehaviour = a script Unity can put
         string level = SceneManager.GetActiveScene().name; // the name of the level we are in
         PlayerPrefs.SetString(SavedLevelKey, level);        // store it under SavedLevelKey
         PlayerPrefs.Save();                                 // write it to disk right away
-        Debug.Log("Game saved: " + level, this);            // so you can see it worked
+        if (Application.isEditor) Debug.Log("Game saved: " + level, this); // so you can see it worked (only in the Editor)
     }
 
     // "Load Game": loads the saved level. (PLACEHOLDER: load the extra saved things here later.)
@@ -151,9 +157,8 @@ public class PauseMenu : MonoBehaviour // MonoBehaviour = a script Unity can put
             return; // stay in the pause menu
         }
 
-        Time.timeScale = 1f;         // the loaded level must not start frozen
-        AudioListener.pause = false; // or silent
-        IsPaused = false;            // so OnDestroy has nothing left to clean up
+        GamePause.ResetAll(); // the loaded level must not start frozen or silent
+        isPaused = false;     // so OnDestroy has nothing left to clean up
         SceneManager.LoadScene(PlayerPrefs.GetString(SavedLevelKey)); // load the saved level
     }
 

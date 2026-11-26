@@ -70,6 +70,7 @@ public class PlayerSwordAttack : MonoBehaviour // MonoBehaviour = a script Unity
     private AttackPhase phase = AttackPhase.Idle; // which part of the swing we are in
     private float phaseSecondsRemaining;          // how long the current part still lasts
     private List<IDamageable> alreadyHit = new List<IDamageable>(); // old ball only: who was hurt in this swing
+    private Collider[] touchingBuffer = new Collider[16];           // old ball only: reused for every check, so swinging creates no garbage
     private float hitStunRemaining;               // time left of the Hit animation: no attacking until it is 0
 
     // True during the whole swing. PlayerController and others read it.
@@ -186,11 +187,12 @@ public class PlayerSwordAttack : MonoBehaviour // MonoBehaviour = a script Unity
     private void DetectHitsWithBall()
     {
         Vector3 center = transform.TransformPoint(hitboxLocalOffset);
-        Collider[] touching = Physics.OverlapSphere(center, hitboxRadiusMeters, hitMask, QueryTriggerInteraction.Ignore);
+        // "NonAlloc" fills our ready-made list instead of making a new one every frame. count = how many it found.
+        int count = Physics.OverlapSphereNonAlloc(center, hitboxRadiusMeters, touchingBuffer, hitMask, QueryTriggerInteraction.Ignore);
 
-        for (int i = 0; i < touching.Length; i++)
+        for (int i = 0; i < count; i++)
         {
-            Collider other = touching[i];
+            Collider other = touchingBuffer[i];
             if (other.transform.IsChildOf(transform)) continue; // don't hit ourselves
 
             IDamageable target = other.GetComponentInParent<IDamageable>();
@@ -212,7 +214,8 @@ public class PlayerSwordAttack : MonoBehaviour // MonoBehaviour = a script Unity
     private void OnDrawGizmosSelected()
     {
         if (weapon != null) return;
-        Gizmos.color = phase == AttackPhase.Active ? Color.red : new Color(1f, 0.9f, 0f, 0.6f);
+        Gizmos.color = new Color(1f, 0.9f, 0f, 0.6f);          // yellow: not hurting
+        if (phase == AttackPhase.Active) Gizmos.color = Color.red; // red: the blade can hurt right now
         Gizmos.DrawWireSphere(transform.TransformPoint(hitboxLocalOffset), hitboxRadiusMeters);
     }
 }

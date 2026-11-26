@@ -25,15 +25,13 @@ public class Ladder : MonoBehaviour      // MonoBehaviour = a script Unity can p
     // Unity calls this when something walks into the trigger box.
     private void OnTriggerEnter(Collider other)
     {
-        PlayerController player = other.GetComponentInParent<PlayerController>(); // is it the player? (null if not)
-        if (player != null) player.StartClimbing(this);                           // yes: grab on to this ladder
+        if (PlayerController.IsPlayer(other)) PlayerController.Current.StartClimbing(this); // the player: grab on to this ladder
     }
 
     // Unity calls this when something leaves the trigger box (climbed off the top, bottom or sides).
     private void OnTriggerExit(Collider other)
     {
-        PlayerController player = other.GetComponentInParent<PlayerController>(); // is it the player? (null if not)
-        if (player != null) player.StopClimbing(this);                            // yes: let go of this ladder
+        if (PlayerController.IsPlayer(other)) PlayerController.Current.StopClimbing(this); // the player: let go of this ladder
     }
 
     // Reset runs in the editor when the script is first added: make the box a trigger right away.

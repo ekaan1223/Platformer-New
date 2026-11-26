@@ -37,7 +37,7 @@ public class MainMenuManager : MonoBehaviour // MonoBehaviour = a script Unity c
     // The "Start" button: loads the first level.
     public void StartGame()
     {
-        Time.timeScale = 1f;                    // never start a level frozen (the pause screen may have frozen the game)
+        GamePause.ResetAll();                   // never start a level frozen (the pause screen may have frozen the game)
         SceneManager.LoadScene(firstLevelName); // load the first level
     }
 
@@ -50,7 +50,7 @@ public class MainMenuManager : MonoBehaviour // MonoBehaviour = a script Unity c
             return;      // stop here
         }
 
-        Time.timeScale = 1f;                                           // never start a level frozen
+        GamePause.ResetAll();                                          // never start a level frozen
         SceneManager.LoadScene(PlayerPrefs.GetString(PauseMenu.SavedLevelKey)); // load the saved level
     }
 
@@ -76,15 +76,15 @@ public class MainMenuManager : MonoBehaviour // MonoBehaviour = a script Unity c
     {
         isPaused = true;                                // remember we are paused
         if (PauseScreen != null) PauseScreen.SetActive(true); // show the pause screen
-        Time.timeScale = 0f;                            // freeze the game
+        GamePause.SetMenuPause(true);                   // freeze the game (GamePause is the one place that does it)
     }
 
     // Closes every screen and unfreezes the game.
     public void ResumeGame()
     {
         isPaused = false;    // not paused anymore
-        CloseAllScreens();   // hide the pause screen and any settings tab
-        Time.timeScale = 1f; // unfreeze the game
+        CloseAllScreens();             // hide the pause screen and any settings tab
+        GamePause.SetMenuPause(false); // unfreeze the game
     }
 
     // ---------- Settings screens ----------
@@ -101,10 +101,29 @@ public class MainMenuManager : MonoBehaviour // MonoBehaviour = a script Unity c
         OpenOnSettings(null); // just the settings frame, no tab
     }
 
-    public void OpenMemoriesScreen() => OpenOnSettings(MemoriesScreen);       // the memories tab
-    public void OpenProgressionScreen() => OpenOnSettings(ProgressionScreen); // the progression tab
-    public void OpenSoundScreen() => OpenOnSettings(SoundScreen);             // the sound tab
-    public void OpenCreditsScreen() => OpenOnSettings(CreditsScreen);         // the credits tab
+    // Opens the memories tab.
+    public void OpenMemoriesScreen()
+    {
+        OpenOnSettings(MemoriesScreen);
+    }
+
+    // Opens the progression tab.
+    public void OpenProgressionScreen()
+    {
+        OpenOnSettings(ProgressionScreen);
+    }
+
+    // Opens the sound tab.
+    public void OpenSoundScreen()
+    {
+        OpenOnSettings(SoundScreen);
+    }
+
+    // Opens the credits tab.
+    public void OpenCreditsScreen()
+    {
+        OpenOnSettings(CreditsScreen);
+    }
 
     // Closes the settings screen.
     public void QuitSettings()

@@ -112,11 +112,10 @@ public class EnemyWeaponAttack : MonoBehaviour // MonoBehaviour = a script Unity
         return toPlayer.magnitude <= attackRangeMeters;
     }
 
-    // Finds the player: the object with the PlayerController.
+    // Finds the player: the scene's PlayerController (no searching, so it is fine to call often).
     private void FindPlayer()
     {
-        PlayerController found = FindFirstObjectByType<PlayerController>();
-        if (found != null) player = found.transform;
+        if (PlayerController.Current != null) player = PlayerController.Current.transform;
     }
 
     // Starts one attack: stand still, play the animation, wait for the windup.

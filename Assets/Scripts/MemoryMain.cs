@@ -1,14 +1,14 @@
-using System.Collections.Generic;
-using UnityEngine;
-using UnityEngine.Events;
+using System.Collections.Generic; // gives us List
+using UnityEngine;                // gives us access to Unity classes (Renderer, Material, etc.)
+using UnityEngine.Events;         // gives us UnityEvent (the event lists you can fill in the Inspector)
 
-/// <summary>
-/// "Memory Main": cannot be collected until the level's small memories are all collected.
-/// While locked it shows a semi-transparent "ghost" material; when unlocked, the model's own
-/// materials come back. Swapping MATERIALS (not the model) means this works with a placeholder sphere
-/// today and your Blender model later, with no code changes.
-/// </summary>
-public class MemoryMain : MemoryPickup
+// MEMORY MAIN
+// "Memory Main": can't be collected until the level's small memories are all collected.
+// While locked it shows a semi-transparent "ghost" material; when unlocked, the model's own materials come back.
+// Swapping MATERIALS (not the model) means this works with a placeholder sphere today and your Blender model
+// later, with no code changes.
+
+public class MemoryMain : MemoryPickup // built on MemoryPickup (touching, sound, fade, removal)
 {
     [Header("Locked look")]
     [Tooltip("A semi-transparent material shown while locked. EVERY material slot of the model is replaced " +
@@ -22,57 +22,73 @@ public class MemoryMain : MemoryPickup
     [Tooltip("Fires when the player touches it while it is still locked. Later: a 'collect 3 small memories' hint.")]
     [SerializeField] private UnityEvent onTouchedWhileLocked;
 
-    private readonly List<Renderer> renderers = new List<Renderer>();
-    private readonly List<Material[]> unlockedMaterials = new List<Material[]>();
+    private List<Renderer> renderers = new List<Renderer>();             // the model's parts
+    private List<Material[]> unlockedMaterials = new List<Material[]>(); // each part's real materials, to put back on unlock
 
-    protected override bool CanBeCollected => Tracker != null && Tracker.IsMainUnlocked;
+    // It can be collected once the tracker says the main memory is unlocked.
+    protected override bool CanBeCollected
+    {
+        get { return Tracker != null && Tracker.IsMainUnlocked; }
+    }
 
+    // Awake runs once, when the object is created.
     protected override void Awake()
     {
-        base.Awake();
+        base.Awake(); // MemoryPickup's own Awake first (colliders, sound)
 
         // Remember the model's real materials, so we can put them back when it unlocks.
-        foreach (Renderer r in GetComponentsInChildren<Renderer>())
+        Renderer[] found = GetComponentsInChildren<Renderer>();
+        for (int i = 0; i < found.Length; i++)
         {
-            if (!(r is MeshRenderer) && !(r is SkinnedMeshRenderer)) continue;   // skip particles, trails...
+            Renderer r = found[i];
+            if (!(r is MeshRenderer) && !(r is SkinnedMeshRenderer)) continue; // skip particles, trails...
             renderers.Add(r);
             unlockedMaterials.Add(r.sharedMaterials);
         }
     }
 
+    // Start runs once, after every Awake.
     protected override void Start()
     {
         base.Start();
         if (Tracker == null) return;
 
-        Tracker.MainUnlocked += HandleMainUnlocked;
+        Tracker.MainUnlocked += HandleMainUnlocked; // "when the main memory unlocks, call HandleMainUnlocked"
         ApplyLockedLook(!Tracker.IsMainUnlocked);   // boss level: already unlocked, so it starts solid
     }
 
+    // OnDestroy runs when the memory goes away: stop listening.
     private void OnDestroy()
     {
         if (Tracker != null) Tracker.MainUnlocked -= HandleMainUnlocked;
     }
 
-    protected override void HandleCollected() => Tracker.RegisterMainCollected();
+    // Collecting it: this level's memories are complete.
+    protected override void HandleCollected()
+    {
+        Tracker.RegisterMainCollected();
+    }
 
+    // Touched while still locked: show the hint.
     protected override void HandleCollectBlocked()
     {
         if (lockedHint != null && DialoguePlayer.Current != null) DialoguePlayer.Current.Play(lockedHint, false);
-        onTouchedWhileLocked?.Invoke();
+        if (onTouchedWhileLocked != null) onTouchedWhileLocked.Invoke();
     }
 
+    // The tracker calls this when enough small memories are collected.
     private void HandleMainUnlocked()
     {
         ApplyLockedLook(false);
-        onUnlocked?.Invoke();
+        if (onUnlocked != null) onUnlocked.Invoke();
     }
 
+    // locked = true: every material slot shows the ghost material. false: the real materials come back.
     private void ApplyLockedLook(bool locked)
     {
         if (lockedMaterial == null)
         {
-            if (locked) Debug.LogWarning($"{name}: no Locked Material assigned, so it won't look semi-transparent.", this);
+            if (locked) Debug.LogWarning(name + ": no Locked Material assigned, so it won't look semi-transparent.", this);
             return;
         }
 
@@ -80,11 +96,11 @@ public class MemoryMain : MemoryPickup
         {
             if (!locked)
             {
-                renderers[i].sharedMaterials = unlockedMaterials[i];
+                renderers[i].sharedMaterials = unlockedMaterials[i]; // the real materials
                 continue;
             }
 
-            Material[] ghost = new Material[unlockedMaterials[i].Length];
+            Material[] ghost = new Material[unlockedMaterials[i].Length]; // as many slots as the real model has
             for (int slot = 0; slot < ghost.Length; slot++) ghost[slot] = lockedMaterial;
             renderers[i].sharedMaterials = ghost;
         }

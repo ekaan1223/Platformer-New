@@ -11,6 +11,8 @@ using UnityEngine.UI;          // gives us Image, for the portrait
 // Each line stays for its "Seconds On Screen" (or as long as its voice line), then the next one shows.
 // The skip button (E / Enter / gamepad Y by default) jumps to the next line right away and stops its voice line.
 // When the game is paused for a conversation, the voice line still plays; all other sounds pause.
+// The freezing itself is done by GamePause. While the pause menu is open, the conversation waits: the line stays,
+// its voice line pauses, and the skip button does nothing, until the menu closes.
 
 public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity can put on an object
 {
@@ -35,9 +37,9 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
     public bool IsPlaying { get; private set; } // true while a conversation is on screen
     public DialogueData CurrentDialogue { get; private set; } // the conversation on screen right now (null = none). Interactable reads it
 
-    private bool pausedTheGame;   // true if the conversation on screen froze the game (so Stop knows to unfreeze it)
-    private float timeScaleBefore; // the game speed before the conversation froze it, to put it back afterwards
+    private bool pausedTheGame;     // true if the conversation on screen froze the game (so Finish knows to unfreeze it)
     private bool showBorder = true; // false = the border stays hidden for the whole conversation (set in Play)
+    private bool voicePausedByMenu; // true while the pause menu has paused the voice line (so it can carry on afterwards)
 
     // Awake runs once, when the object is created.
     private void Awake()
@@ -58,16 +60,23 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
         if (dialogueBox != null) dialogueBox.SetActive(false); // hidden until a conversation starts
     }
 
-    private void OnEnable() => skipAction.Enable();   // listen to the skip button
-    private void OnDisable() => skipAction.Disable(); // stop listening
+    // OnEnable runs when the script is switched on: listen to the skip button.
+    private void OnEnable()
+    {
+        skipAction.Enable();
+    }
+
+    // OnDisable runs when the script is switched off (or destroyed): stop listening.
+    private void OnDisable()
+    {
+        skipAction.Disable();
+    }
 
     // OnDestroy runs when the object goes away (e.g. the level restarts in the middle of a conversation).
     private void OnDestroy()
     {
-        if (Current == this) Current = null; // the next scene's dialogue player takes over
-        if (!IsPlaying) return;              // no conversation was playing: nothing to clean up
-        Time.timeScale = 1f;                 // never leave the game frozen
-        AudioListener.pause = false;         // never leave the sounds paused
+        if (Current == this) Current = null;                          // the next scene's dialogue player takes over
+        if (IsPlaying && pausedTheGame) GamePause.SetDialoguePause(false); // never leave the game frozen
     }
 
     // Starts a conversation. Called by DialogueTrigger and Interactable. Returns false if another one is already playing.
@@ -97,13 +106,8 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
         IsPlaying = true;                // no other conversation can start now
         CurrentDialogue = dialogue;      // remember which conversation is on screen
         pausedTheGame = pauseGame;       // remember if we freeze the game, so Finish knows to unfreeze it
-        timeScaleBefore = Time.timeScale; // remember the game speed, to put it back afterwards
 
-        if (pauseGame)
-        {
-            Time.timeScale = 0f;        // freeze the game (movement, physics, animations)
-            AudioListener.pause = true; // pause every sound except the voice line (ignoreListenerPause)
-        }
+        if (pauseGame) GamePause.SetDialoguePause(true); // freeze the game and pause every sound except the voice line (ignoreListenerPause)
 
         if (dialogueBox != null) dialogueBox.SetActive(true); // show the dialogue UI
 
@@ -119,7 +123,24 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
             while (timer < seconds)
             {
                 yield return null;              // wait one frame (first, so the press that skipped the last line can't skip this one too)
-                timer += Time.unscaledDeltaTime; // "unscaled" keeps counting while the game is paused
+
+                if (GamePause.IsMenuOpen) // the pause menu is open: the line waits, and the skip button belongs to the menu
+                {
+                    if (voiceSource.isPlaying)
+                    {
+                        voiceSource.Pause();     // hold the voice line where it is
+                        voicePausedByMenu = true;
+                    }
+                    continue;                    // don't count the time, don't check the skip button
+                }
+
+                if (voicePausedByMenu) // the menu just closed: the voice line carries on
+                {
+                    voiceSource.UnPause();
+                    voicePausedByMenu = false;
+                }
+
+                timer += Time.unscaledDeltaTime; // "unscaled" keeps counting while a conversation has frozen the game
                 if (skipAction.WasPressedThisFrame()) break; // skip pressed: go to the next line now
             }
 
@@ -132,15 +153,13 @@ public class DialoguePlayer : MonoBehaviour // MonoBehaviour = a script Unity ca
     // Closes the conversation: hides the UI and unfreezes the game. Used by PlayRoutine and Stop.
     private void Finish()
     {
-        voiceSource.Stop(); // no voice line keeps talking after the box is gone
+        voiceSource.Stop();        // no voice line keeps talking after the box is gone
+        voicePausedByMenu = false; // a stopped voice line has nothing to carry on
 
         if (dialogueBox != null) dialogueBox.SetActive(false); // hide the dialogue UI
 
-        if (pausedTheGame)
-        {
-            Time.timeScale = timeScaleBefore; // unfreeze the game
-            AudioListener.pause = false;      // un-pause the other sounds
-        }
+        if (pausedTheGame) GamePause.SetDialoguePause(false); // this conversation no longer wants the game frozen (the pause menu may still want it)
+        pausedTheGame = false;
 
         IsPlaying = false;      // ready for the next conversation
         CurrentDialogue = null; // nothing is on screen anymore

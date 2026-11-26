@@ -2,45 +2,51 @@ using System.Collections.Generic; // gives us List
 using UnityEngine;                // gives us access to Unity classes (MonoBehaviour, CharacterController, Physics, etc.)
 using UnityEngine.Events;         // gives us UnityEvent, for the Inspector events
 
-/// <summary>
-/// Goomba-style enemy: patrols a path, chases the player when it SEES them (view cone, walls block the view),
-/// gives up after a while, and hurts the player on touch through IDamageable.
-/// Moves itself with a CharacterController, the same way PlayerController moves the player.
-///
-/// HOW IT THINKS (every "Steer Interval Seconds", not every frame, to save time):
-///   1. Can I see the player?  (in range, in the view cone, and no wall between us)
-///   2. Where do I want to go? (the next patrol point, or the player)
-///   3. Which way is safe?     It tries straight ahead first, then 30, 60 and 90 degrees to each side, and takes
-///                             the first direction with no wall, no gap and no damaging ground. That makes it slide
-///                             along walls instead of walking into them, and never walk off a platform.
-///   It always tries its last turning side first, so it follows a wall instead of zig-zagging.
-///   If it still makes no progress it tries the other side, and finally gives up (chase) or skips the point (patrol).
-///
-/// Select the enemy in the Scene view to see the gizmos:
-///   GREEN = patrol path   YELLOW = view cone   RED sphere = chase leash   RED box = touch zone
-///   WHITE line (while playing) = the direction it chose.   CYAN line = it can see the player right now.
-/// </summary>
-[RequireComponent(typeof(CharacterController))]
-public class EnemyAI : MonoBehaviour
-{
-    private const float ArrivalDistanceMeters = 0.08f;    // "close enough" to a patrol point
-    private const float GroundStickSpeed = 1f;            // small push down while standing, so it stays on slopes
-    private const float MaxFallSpeedMetersPerSecond = 10f; // never falls faster than this
-    private const float StuckProgressFraction = 0.25f;    // moved less than this part of the expected distance = stuck
-    private const int ConeArcSegments = 12;               // how smooth the view cone gizmo is
+// ENEMY AI
+// Goomba-style enemy: patrols a path, chases the player when it SEES them (view cone, walls block the view),
+// gives up after a while, and (if Hurt On Touch is on) hurts the player on touch through IDamageable.
+// It moves itself with a CharacterController, the same way PlayerController moves the player.
+//
+// HOW IT THINKS (every "Steer Interval Seconds", not every frame, to save time):
+//   1. Can I see the player?  (in range, in the view cone, and no wall between us)
+//   2. Where do I want to go? (the next patrol point, or the player)
+//   3. Which way is safe?     It tries straight ahead first, then 30, 60 and 90 degrees to each side, and takes
+//                             the first direction with no wall, no gap and no damaging ground. That makes it slide
+//                             along walls instead of walking into them, and never walk off a platform.
+//   4. Am I standing inside another enemy? Then it gets a gentle push away from it.
+//   It always tries its last turning side first, so it follows a wall instead of zig-zagging.
+//   If it still makes no progress it tries the other side, and finally gives up (chase) or skips the point (patrol).
+// Every frame it only MOVES in the direction it decided on (that part is cheap).
+//
+// Select the enemy in the Scene view to see the gizmos:
+//   GREEN = patrol path   YELLOW = view cone   RED sphere = chase leash   RED box = touch zone
+//   WHITE line (while playing) = the direction it chose.   CYAN line = it can see the player right now.
 
-    // Every enemy in the scene (static = ONE list shared by all enemies). Used to pass through and push apart.
+[RequireComponent(typeof(CharacterController))] // Unity adds a CharacterController automatically if the object has none
+public class EnemyAI : MonoBehaviour // MonoBehaviour = a script Unity can put on an object and call every frame
+{
+    private const float ArrivalDistanceMeters = 0.08f;     // "close enough" to a patrol point
+    private const float GroundStickSpeed = 1f;             // small push down while standing, so it stays on slopes
+    private const float MaxFallSpeedMetersPerSecond = 10f; // never falls faster than this
+    private const float StuckProgressFraction = 0.25f;     // moved less than this part of the expected distance = stuck
+    private const int ConeArcSegments = 12;                // how smooth the view cone gizmo is
+
+    // Every enemy in the scene ("static" = ONE list shared by all enemies). Used to pass through and push apart.
     private static List<EnemyAI> allEnemies = new List<EnemyAI>();
 
-    // Static data survives into the next Play session if "Enter Play Mode Options" skips domain reload.
+    // Static data survives into the next Play session if "Enter Play Mode Options" skips the script reload.
+    // This runs when Play starts and empties the list.
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-    private static void ResetStatics() => allEnemies.Clear();
+    private static void ResetStatics()
+    {
+        allEnemies.Clear();
+    }
 
     // The angles it tries, in order, around the way it wants to go (multiplied by its preferred side).
     private static float[] tryAngles = { 0f, 30f, -30f, 60f, -60f, 90f, -90f };
 
     [Header("References")]
-    [Tooltip("Who to hunt. Empty = finds the object tagged 'Player' (or the one with PlayerController).")]
+    [Tooltip("Who to hunt. Empty = the player of the scene (PlayerController).")]
     [SerializeField] private Transform player;
 
     [Header("Patrol Path")]
@@ -124,14 +130,18 @@ public class EnemyAI : MonoBehaviour
     [SerializeField] private UnityEvent onPlayerLost;
     [SerializeField] private UnityEvent onPlayerHit;
 
-    private RaycastHit[] hitBuffer = new RaycastHit[8];   // reused for every ray, so checking creates no garbage
-    private Collider[] overlapBuffer = new Collider[8];   // reused for the hazard-zone check
+    private RaycastHit[] hitBuffer = new RaycastHit[8]; // reused for every ray, so checking creates no garbage
+    private Collider[] overlapBuffer = new Collider[8]; // reused for the hazard-zone check
 
     private CharacterController controller;
     private Collider playerCollider;      // the player's body: where it looks, and what it touches
     private IDamageable playerHealth;     // what it hurts on touch
     private Stompable stompable;          // optional: does all the stomping work. Asked before hurting the player
     private Vector3 homePosition;         // where the enemy was placed; the patrol path and leash hang off this
+
+    // SPEED TRICK: most rays hit the same floor or wall again and again. Searching that collider's parents for an
+    // EnemyAI every time would waste time, so the last collider that turned out to be "the world" is remembered.
+    private Collider lastWorldCollider;
 
     private bool isChasing;
     private bool canSeePlayer;            // the result of the last sight check
@@ -150,23 +160,30 @@ public class EnemyAI : MonoBehaviour
     private float thinkTimer;             // counts down to the next look-around
     private Vector3 chosenDirection;      // the safe direction picked by the last look-around (zero = none)
     private Vector3 moveDirection;        // chosenDirection, smoothed, so turns aren't instant
+    private Vector3 separationVelocity;   // the push away from other enemies, worked out by the last look-around
     private float preferredSide = 1f;     // +1 = tries left turns first, -1 = right turns first
 
     private float stuckTimer;
     private Vector3 lastCheckPosition;
     private int stuckCount;
 
-    public bool IsChasing => isChasing;
+    // True while it chases the player. Other scripts can read it.
+    public bool IsChasing
+    {
+        get { return isChasing; }
+    }
 
     // Set by EnemyWeaponAttack while it swings: true = stand still and face the player. Not saved, not in the Inspector.
     [System.NonSerialized] public bool HoldStill;
 
-    /// <summary>
-    /// Move this enemy's "home" (where its patrol path and chase leash are measured from).
-    /// The boss calls this after throwing an enemy, so it patrols and chases from where it LANDED.
-    /// </summary>
-    public void SetHomePosition(Vector3 position) => homePosition = position;
+    // Moves this enemy's "home" (where its patrol path and chase leash are measured from).
+    // The boss calls this after throwing an enemy, so it patrols and chases from where it LANDED.
+    public void SetHomePosition(Vector3 position)
+    {
+        homePosition = position;
+    }
 
+    // Awake runs once, when the object is created.
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
@@ -178,13 +195,32 @@ public class EnemyAI : MonoBehaviour
 
         // Enemies pass through each other (two solid enemies pushing each other is how groups get stuck).
         // The soft separation push keeps them from standing inside each other.
-        allEnemies.RemoveAll(enemy => enemy == null);
-        foreach (EnemyAI other in allEnemies) Physics.IgnoreCollision(controller, other.controller, true);
+        for (int i = allEnemies.Count - 1; i >= 0; i--) // backwards, so removing doesn't skip the next one
+        {
+            if (allEnemies[i] == null) allEnemies.RemoveAt(i); // forget enemies that were destroyed
+            else Physics.IgnoreCollision(controller, allEnemies[i].controller, true);
+        }
         allEnemies.Add(this);
     }
 
-    private void OnDestroy() => allEnemies.Remove(this);
+    // OnDestroy runs when the enemy goes away: take it off the shared list.
+    private void OnDestroy()
+    {
+        allEnemies.Remove(this);
+    }
 
+    // Start runs once, after every Awake (so the player has set PlayerController.Current by now).
+    private void Start()
+    {
+        if (player != null) // dragged in by hand: still needs the collider and health
+        {
+            playerCollider = player.GetComponentInChildren<Collider>();
+            playerHealth = player.GetComponentInChildren<IDamageable>();
+        }
+        else FindPlayer();
+    }
+
+    // Update runs every frame.
     private void Update()
     {
         float deltaTime = Time.deltaTime;
@@ -198,8 +234,19 @@ public class EnemyAI : MonoBehaviour
         if (giveUpCooldownRemaining > 0f) giveUpCooldownRemaining -= deltaTime;
         if (damageCooldownRemaining > 0f) damageCooldownRemaining -= deltaTime;
 
-        Vector3 goal = isChasing ? GetChaseGoal() : GetPatrolGoal(deltaTime); // where it WANTS to go (zero = stand still)
-        float speed = isChasing ? chaseSpeedMetersPerSecond : patrolSpeedMetersPerSecond;
+        // Where it WANTS to go (zero = stand still), and how fast.
+        Vector3 goal;
+        float speed;
+        if (isChasing)
+        {
+            goal = GetChaseGoal();
+            speed = chaseSpeedMetersPerSecond;
+        }
+        else
+        {
+            goal = GetPatrolGoal(deltaTime);
+            speed = patrolSpeedMetersPerSecond;
+        }
 
         thinkTimer -= deltaTime;
         if (thinkTimer <= 0f) // time to look around
@@ -211,7 +258,9 @@ public class EnemyAI : MonoBehaviour
         UpdateChaseTimers(deltaTime);
 
         moveDirection = Vector3.MoveTowards(moveDirection, chosenDirection, steerResponsiveness * deltaTime); // smooth turns
-        Vector3 look = isChasing && player != null ? player.position - transform.position : moveDirection; // chasing: face the player
+
+        Vector3 look = moveDirection;                                      // patrolling: face where it walks
+        if (isChasing && player != null) look = player.position - transform.position; // chasing: face the player
 
         if (HoldStill) // swinging its weapon (EnemyWeaponAttack): stand still, keep falling, face the player
         {
@@ -221,7 +270,7 @@ public class EnemyAI : MonoBehaviour
             return; // no touch damage, and standing still on purpose is not "stuck"
         }
 
-        Move(moveDirection * speed + GetSeparation(), look, deltaTime);
+        Move(moveDirection * speed + separationVelocity, look, deltaTime);
 
         if (hurtOnTouch) TryDamagePlayer(); // off when the enemy hurts with a weapon instead (EnemyWeaponAttack)
         CheckStuck(goal, speed, deltaTime);
@@ -229,31 +278,15 @@ public class EnemyAI : MonoBehaviour
 
     // ---- Finding the player ----------------------------------------------
 
+    // Uses the scene's player (PlayerController.Current: no searching, so it is fine to call often).
     private void FindPlayer()
     {
-        GameObject tagged = GameObject.FindGameObjectWithTag("Player"); // first try the tag...
-        if (tagged != null) player = tagged.transform;
-        else
-        {
-            PlayerController found = FindFirstObjectByType<PlayerController>(); // ...then the PlayerController
-            if (found != null) player = found.transform;
-        }
+        if (PlayerController.Current == null) return; // no player in the scene (yet)
 
-        if (player == null) return; // still not in the scene
-
+        player = PlayerController.Current.transform;
         playerCollider = player.GetComponentInChildren<Collider>();
         playerHealth = player.GetComponentInChildren<IDamageable>();
-        if (playerHealth == null) Debug.LogWarning($"{name}: the player has no Damageable, so touching it does nothing.", this);
-    }
-
-    private void Start()
-    {
-        if (player != null) // dragged in by hand: still needs the collider and health
-        {
-            playerCollider = player.GetComponentInChildren<Collider>();
-            playerHealth = player.GetComponentInChildren<IDamageable>();
-        }
-        else FindPlayer();
+        if (playerHealth == null) Debug.LogWarning(name + ": the player has no Damageable, so touching it does nothing.", this);
     }
 
     // ---- Thinking (every Steer Interval Seconds) --------------------------
@@ -270,10 +303,12 @@ public class EnemyAI : MonoBehaviour
             secondsSinceSeen = 0f;
             blockedSeconds = 0f;
             stuckCount = 0;
-            onPlayerSpotted?.Invoke();
+            if (onPlayerSpotted != null) onPlayerSpotted.Invoke();
             goal = GetChaseGoal();
             speed = chaseSpeedMetersPerSecond;
         }
+
+        separationVelocity = GetSeparation(); // the push away from other enemies, used every frame until the next look-around
 
         if (goal == Vector3.zero) // nothing to do: stand still
         {
@@ -284,8 +319,9 @@ public class EnemyAI : MonoBehaviour
         float lookAhead = wallCheckDistanceMeters + speed * steerIntervalSeconds; // also covers the distance walked until the next check
         chosenDirection = Vector3.zero;
 
-        foreach (float angle in tryAngles) // straight first, then wider and wider turns
+        for (int i = 0; i < tryAngles.Length; i++) // straight first, then wider and wider turns
         {
+            float angle = tryAngles[i];
             Vector3 direction = Quaternion.AngleAxis(angle * preferredSide, Vector3.up) * goal;
             if (!IsSafe(direction, lookAhead)) continue;
 
@@ -310,7 +346,8 @@ public class EnemyAI : MonoBehaviour
         if (!isChasing) return;
 
         chaseSecondsElapsed += deltaTime;
-        secondsSinceSeen = canSeePlayer ? 0f : secondsSinceSeen + deltaTime;
+        if (canSeePlayer) secondsSinceSeen = 0f;
+        else secondsSinceSeen += deltaTime;
 
         if (player == null || secondsSinceSeen >= loseSightSeconds || chaseSecondsElapsed >= maxChaseSeconds ||
             blockedSeconds >= giveUpWhenBlockedSeconds || IsTooFarFromHome())
@@ -327,7 +364,7 @@ public class EnemyAI : MonoBehaviour
         blockedSeconds = 0f;
         stuckCount = 0;
         thinkTimer = 0f; // decide the new direction right away
-        onPlayerLost?.Invoke();
+        if (onPlayerLost != null) onPlayerLost.Invoke();
     }
 
     private bool IsTooFarFromHome()
@@ -339,16 +376,15 @@ public class EnemyAI : MonoBehaviour
 
     // ---- Line of sight -----------------------------------------------------
 
-    /// <summary>
-    /// 1) close enough?  2) inside the view cone (or very close)?  3) a ray from the eyes to the MIDDLE of the
-    /// player's body hits no wall on the way? Only real world objects block it (not enemies, not triggers).
-    /// </summary>
+    // 1) close enough?  2) inside the view cone (or very close)?  3) a ray from the eyes to the MIDDLE of the
+    // player's body hits no wall on the way? Only real world objects block it (not enemies, not triggers).
     private bool CanSeePlayer()
     {
         if (player == null) return false;
 
         Vector3 eye = transform.position + Vector3.up * eyeHeightMeters;
-        Vector3 target = playerCollider != null ? playerCollider.bounds.center : player.position; // the middle of the body
+        Vector3 target = player.position;                       // the player's feet...
+        if (playerCollider != null) target = playerCollider.bounds.center; // ...or better, the middle of the body
         Vector3 toTarget = target - eye;
         float distance = toTarget.magnitude;
 
@@ -359,7 +395,7 @@ public class EnemyAI : MonoBehaviour
         bool inCone = Vector3.Angle(transform.forward, flat) <= sightAngleDegrees * 0.5f;
         if (!inCone && distance > closeAwarenessMeters) return false; // behind us and not very close
 
-        return !IsBlocked(eye, toTarget / distance, distance); // a wall in between?
+        return !IsBlocked(eye, toTarget / distance, distance, 0f); // a wall in between?
     }
 
     // ---- Goals: where does it WANT to go? ----------------------------------
@@ -399,7 +435,7 @@ public class EnemyAI : MonoBehaviour
             if (next < 0 || next >= patrolPoints.Length) patrolStep = -patrolStep; // bounce at the ends
             patrolIndex += patrolStep;
         }
-        else patrolIndex = (patrolIndex + 1) % patrolPoints.Length;
+        else patrolIndex = (patrolIndex + 1) % patrolPoints.Length; // the next one, back to the first after the last
     }
 
     private Vector3 GetChaseGoal()
@@ -415,7 +451,7 @@ public class EnemyAI : MonoBehaviour
 
     // ---- Checking the world ------------------------------------------------
 
-    /// <summary>Can it walk this way? No wall within 'distance', ground ahead (unless ledges are allowed), no hazard.</summary>
+    // Can it walk this way? No wall within 'distance', ground ahead (unless ledges are allowed), no hazard.
     private bool IsSafe(Vector3 direction, float distance)
     {
         Bounds body = controller.bounds;
@@ -435,33 +471,29 @@ public class EnemyAI : MonoBehaviour
         RaycastHit ground;
         bool hasGround = FirstHit(ahead + Vector3.up * startHeight, Vector3.down, startHeight + ledgeCheckDepthMeters, 0f, out ground);
 
-        if (!hasGround) return !avoidLedges;                                  // a gap or a deep drop
+        if (!hasGround) return !avoidLedges;                                       // a gap or a deep drop
         if (avoidHazards && IsHazard(ground.collider, ground.point)) return false; // lava, spikes...
         return true;
     }
 
-    /// <summary>
-    /// Is something solid in the way? A ray (radius 0) or a ball sweep from 'origin' along 'direction'.
-    /// Slopes it can walk up are not "in the way".
-    /// </summary>
-    private bool IsBlocked(Vector3 origin, Vector3 direction, float distance, float radius = 0f)
+    // Is something solid in the way? A ray (radius 0) or a ball sweep from 'origin' along 'direction'.
+    // Slopes it can walk up are not "in the way".
+    private bool IsBlocked(Vector3 origin, Vector3 direction, float distance, float radius)
     {
         RaycastHit hit;
         if (!FirstHit(origin, direction, distance, radius, out hit)) return false; // nothing at all
         return radius <= 0f || Vector3.Angle(hit.normal, Vector3.up) > controller.slopeLimit; // a sweep ignores ramps
     }
 
-    /// <summary>
-    /// The nearest solid world object along a ray / ball sweep. Skips this enemy, other enemies, the player and
-    /// triggers, on EVERY layer, so walls work no matter which layer they are on.
-    /// </summary>
+    // The nearest solid world object along a ray / ball sweep. Skips this enemy, other enemies, the player and
+    // triggers, on EVERY layer, so walls work no matter which layer they are on.
     private bool FirstHit(Vector3 origin, Vector3 direction, float distance, float radius, out RaycastHit nearest)
     {
-        int count = radius > 0f
-            ? Physics.SphereCastNonAlloc(origin, radius, direction, hitBuffer, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)
-            : Physics.RaycastNonAlloc(origin, direction, hitBuffer, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        int count; // how many things the ray / ball hit
+        if (radius > 0f) count = Physics.SphereCastNonAlloc(origin, radius, direction, hitBuffer, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        else count = Physics.RaycastNonAlloc(origin, direction, hitBuffer, distance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
 
-        nearest = default;
+        nearest = new RaycastHit(); // empty until we find one
         bool found = false;
         for (int i = 0; i < count; i++)
         {
@@ -475,18 +507,20 @@ public class EnemyAI : MonoBehaviour
         return found;
     }
 
-    /// <summary>Colliders that are not "the world": this enemy, other enemies and the player.</summary>
+    // Colliders that are not "the world": this enemy, other enemies and the player.
     private bool IsIgnored(Collider other)
     {
-        if (other.transform.IsChildOf(transform)) return true;
-        if (player != null && other.transform.IsChildOf(player)) return true;
-        return other.GetComponentInParent<EnemyAI>() != null;
+        if (other == lastWorldCollider) return false;                        // the same floor / wall as last time: the world (no search needed)
+        if (other.transform.IsChildOf(transform)) return true;               // ourselves
+        if (player != null && other.transform.IsChildOf(player)) return true; // the player
+        if (other.GetComponentInParent<EnemyAI>() != null) return true;      // another enemy
+
+        lastWorldCollider = other; // it is the world: remember it, so the next ray that hits it skips the search
+        return false;
     }
 
-    /// <summary>
-    /// Is this ground damaging? Either the ground itself has a GroundHazard, or a GroundHazard TRIGGER zone
-    /// sits on it (rays skip triggers, so those are searched for directly).
-    /// </summary>
+    // Is this ground damaging? Either the ground itself has a GroundHazard, or a GroundHazard TRIGGER zone
+    // sits on it (rays skip triggers, so those are searched for directly).
     private bool IsHazard(Collider groundCollider, Vector3 point)
     {
         GroundHazard hazard = groundCollider.GetComponentInParent<GroundHazard>();
@@ -503,20 +537,22 @@ public class EnemyAI : MonoBehaviour
 
     // ---- Moving ------------------------------------------------------------
 
-    /// <summary>Pushes this enemy away from enemies that are too close, but never off a ledge or into a wall.</summary>
+    // Pushes this enemy away from enemies that are too close, but never off a ledge or into a wall.
+    // Worked out in Think (not every frame), because the safety check casts rays.
     private Vector3 GetSeparation()
     {
         if (separationStrengthMetersPerSecond <= 0f || separationRadiusMeters <= 0f) return Vector3.zero;
 
         Vector3 push = Vector3.zero;
-        foreach (EnemyAI other in allEnemies)
+        for (int i = 0; i < allEnemies.Count; i++)
         {
+            EnemyAI other = allEnemies[i];
             if (other == null || other == this || !other.isActiveAndEnabled) continue;
 
             Vector3 away = transform.position - other.transform.position;
             away.y = 0f;
             float distance = away.magnitude;
-            if (distance >= separationRadiusMeters || distance < 0.001f) continue;
+            if (distance >= separationRadiusMeters || distance < 0.001f) continue; // far enough (or exactly on top: no direction)
 
             push += away / distance * (1f - distance / separationRadiusMeters); // closer = harder push
         }
@@ -540,10 +576,8 @@ public class EnemyAI : MonoBehaviour
         transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRotation, turnSpeedDegreesPerSecond * deltaTime);
     }
 
-    /// <summary>
-    /// "Stuck" = it wants to move but covered much less distance than it should. First it switches the side it
-    /// prefers to turn to; if that keeps failing it gives up the chase, or skips to the next patrol point.
-    /// </summary>
+    // "Stuck" = it wants to move but covered much less distance than it should. First it switches the side it
+    // prefers to turn to; if that keeps failing it gives up the chase, or skips to the next patrol point.
     private void CheckStuck(Vector3 goal, float speed, float deltaTime)
     {
         stuckTimer += deltaTime;
@@ -575,7 +609,7 @@ public class EnemyAI : MonoBehaviour
 
     // ---- Touch damage ------------------------------------------------------
 
-    /// <summary>"Touching" = the enemy's body, grown by a small padding, overlaps the player's body.</summary>
+    // "Touching" = the enemy's body, grown by a small padding, overlaps the player's body.
     private bool IsTouchingPlayer()
     {
         if (playerCollider == null) return false;
@@ -593,18 +627,20 @@ public class EnemyAI : MonoBehaviour
 
         Vector3 hitDirection = player.position - transform.position;
         hitDirection.y = 0f;
-        hitDirection = hitDirection.sqrMagnitude > 0.0001f ? hitDirection.normalized : transform.forward;
+        if (hitDirection.sqrMagnitude > 0.0001f) hitDirection = hitDirection.normalized;
+        else hitDirection = transform.forward; // right on top of each other: push forward
 
         playerHealth.TakeDamage(contactDamage, hitDirection);
         damageCooldownRemaining = damageCooldownSeconds;
-        onPlayerHit?.Invoke();
+        if (onPlayerHit != null) onPlayerHit.Invoke();
     }
 
     // ---- Gizmos (Scene view only) ------------------------------------------
 
     private void OnDrawGizmosSelected()
     {
-        Vector3 home = Application.isPlaying ? homePosition : transform.position;
+        Vector3 home = transform.position;        // before Play: where it stands now
+        if (Application.isPlaying) home = homePosition; // while playing: where it was placed
 
         // Patrol path (green)
         Gizmos.color = Color.green;

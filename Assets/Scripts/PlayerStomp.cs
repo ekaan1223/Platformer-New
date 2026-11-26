@@ -37,11 +37,14 @@ public class PlayerStomp : MonoBehaviour // MonoBehaviour = a script Unity can p
     // SPEED TRICK: when standing, the player "hits" the floor EVERY frame, and searching that floor for a Stompable every
     // frame would waste time. So we remember the last thing that turned out NOT to be stompable and skip it next time.
     private Collider lastNonStompableCollider; // the last collider we checked that had no Stompable (usually the floor)
+    private Collider lastNonHeadZoneTrigger;   // the same trick for triggers: the last one that was NOT a head zone (a ladder, a pickup...)
+    private Collider body;                     // our body (the CharacterController), found once in Awake
 
     // Awake runs once, when the object is created (or right away when PlayerController adds this script).
     private void Awake()
     {
         if (player == null) player = GetComponent<PlayerController>(); // not dragged in: take the one on this object
+        body = GetComponent<Collider>();                               // our body (the CharacterController is a Collider too)
 
         if (player == null) // still nothing: this script can't work
         {
@@ -84,19 +87,30 @@ public class PlayerStomp : MonoBehaviour // MonoBehaviour = a script Unity can p
 
     // Unity calls these when the player's body is inside a trigger. The enemy's head zone (made by Stompable) is one:
     // falling into it is a stomp, even if we only clip the edge of the head.
-    private void OnTriggerEnter(Collider other) => CheckHeadZone(other);
-    private void OnTriggerStay(Collider other) => CheckHeadZone(other); // Stay: we may start falling while already inside it
+    private void OnTriggerEnter(Collider other)
+    {
+        CheckHeadZone(other);
+    }
+
+    private void OnTriggerStay(Collider other) // Stay: we may start falling while already inside it
+    {
+        CheckHeadZone(other);
+    }
 
     private void CheckHeadZone(Collider other)
     {
+        if (other == lastNonHeadZoneTrigger) return;                       // already know this trigger is not a head zone: skip the search
         if (player.VerticalVelocity > 0f) return;                          // still going up: not a stomp
         if (player.IsGrounded) return;                                     // only from the air: standing next to it (or attacking it) is not a stomp
         if (Time.time - lastStompTime < stompCooldownSeconds) return;      // just stomped: ignore this extra touch
 
         Stompable stompable = other.GetComponentInParent<Stompable>();     // whose trigger is this?
-        if (stompable == null || other != stompable.HeadZone) return;      // not a head zone (a ladder, a pickup...): ignore
+        if (stompable == null || other != stompable.HeadZone)              // not a head zone (a ladder, a pickup...)
+        {
+            lastNonHeadZoneTrigger = other;                                // remember it, so we don't search it again every physics step
+            return;
+        }
 
-        Collider body = GetComponent<Collider>();                          // our body (the CharacterController)
         if (body != null && body.bounds.min.y < other.bounds.min.y) return; // our feet are below the head zone: we brushed it with our body, not our feet
 
         Stomp(stompable);

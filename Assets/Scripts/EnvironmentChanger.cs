@@ -1,15 +1,15 @@
-using UnityEngine;
-using UnityEngine.Events;
+using UnityEngine;        // gives us access to Unity classes (MonoBehaviour, Light, RenderSettings, Shader, etc.)
+using UnityEngine.Events; // gives us UnityEvent (the event lists you can fill in the Inspector)
 
-/// <summary>
-/// Changes the look of the level without loading anything. Call ChangeEnvironment() from an event
-/// (e.g. LevelMemoryTracker -> On Main Collected). It does three kinds of change:
-///  1) Swaps objects on/off and the skybox instantly when the change starts.
-///  2) Blends the sun and fog over Transition Seconds.
-///  3) Moves a GLOBAL shader float from 0 to 1 over the same time. Your future 3D models' shaders can
-///     read it to fade from the "before" look to the "after" look (see the tooltip on that field).
-/// </summary>
-public class EnvironmentChanger : MonoBehaviour
+// ENVIRONMENT CHANGER
+// Changes the look of the level without loading anything. Call ChangeEnvironment() from an event
+// (e.g. LevelMemoryTracker -> On Main Collected). It does three kinds of change:
+//   1. Swaps objects on/off and the skybox instantly when the change starts.
+//   2. Blends the sun and fog over Transition Seconds.
+//   3. Moves a GLOBAL shader number from 0 to 1 over the same time. Your 3D models' shaders can read it to fade
+//      from the "before" look to the "after" look (see the tooltip on that field).
+
+public class EnvironmentChanger : MonoBehaviour // MonoBehaviour = a script Unity can put on an object and call every frame
 {
     [Header("Transition")]
     [SerializeField, Min(0f)] private float transitionSeconds = 3f;
@@ -34,7 +34,7 @@ public class EnvironmentChanger : MonoBehaviour
     [Tooltip("Leave empty to skip.")]
     [SerializeField] private Material skyboxAfter;
 
-    [Header("Shader blend (for your future 3D models)")]
+    [Header("Shader blend (for your 3D models)")]
     [Tooltip("Name of a GLOBAL float shader property that goes 0 -> 1 during the change. In Shader Graph: " +
              "add a Float property, set its Reference to this name, untick Exposed, set Scope to Global, " +
              "then use it as the T of a Lerp between the old and new look. Leave empty to skip.")]
@@ -45,25 +45,38 @@ public class EnvironmentChanger : MonoBehaviour
     [Tooltip("Fires when the transition is complete. Later: start the comic segment here.")]
     [SerializeField] private UnityEvent onChangeFinished;
 
-    private bool changing;
-    private float elapsedSeconds;
+    private bool changing;        // true while the blend runs
+    private float elapsedSeconds; // how long the blend has run
 
-    private Color sunColorBefore;
+    private Color sunColorBefore;     // the "before" values, remembered when the change starts
     private float sunIntensityBefore;
     private Color fogColorBefore;
     private float fogDensityBefore;
 
-    public bool HasChanged { get; private set; }
+    private bool hasChanged; // true once the change is finished
 
-    private void Awake() => SetBlend(0f);
+    // True once the change is finished. Other scripts can read it.
+    public bool HasChanged
+    {
+        get { return hasChanged; }
+    }
+
+    // Awake runs once, when the object is created: start from the "before" look.
+    private void Awake()
+    {
+        SetBlend(0f);
+    }
 
     // Global shader values outlive scenes, so put it back to "before" when this level goes away.
-    private void OnDestroy() => SetBlend(0f);
+    private void OnDestroy()
+    {
+        SetBlend(0f);
+    }
 
-    /// <summary>Public with no parameters so a UnityEvent can call it.</summary>
+    // Starts the change. Public with no parameters so a UnityEvent can call it.
     public void ChangeEnvironment()
     {
-        if (changing || HasChanged) return;
+        if (changing || hasChanged) return; // only once
 
         changing = true;
         elapsedSeconds = 0f;
@@ -77,27 +90,43 @@ public class EnvironmentChanger : MonoBehaviour
         fogColorBefore = RenderSettings.fogColor;
         fogDensityBefore = RenderSettings.fogDensity;
 
-        foreach (GameObject obj in enableOnChange) if (obj != null) obj.SetActive(true);
-        foreach (GameObject obj in disableOnChange) if (obj != null) obj.SetActive(false);
+        if (enableOnChange != null)
+        {
+            for (int i = 0; i < enableOnChange.Length; i++)
+            {
+                if (enableOnChange[i] != null) enableOnChange[i].SetActive(true);
+            }
+        }
+
+        if (disableOnChange != null)
+        {
+            for (int i = 0; i < disableOnChange.Length; i++)
+            {
+                if (disableOnChange[i] != null) disableOnChange[i].SetActive(false);
+            }
+        }
 
         if (skyboxAfter != null)
         {
             RenderSettings.skybox = skyboxAfter;
-            DynamicGI.UpdateEnvironment();   // refresh the ambient light that comes from the sky
+            DynamicGI.UpdateEnvironment(); // refresh the ambient light that comes from the sky
         }
 
         if (changeFog) RenderSettings.fog = true;
 
-        onChangeStarted?.Invoke();
+        if (onChangeStarted != null) onChangeStarted.Invoke();
     }
 
+    // Update runs every frame, but only does something while the blend runs.
     private void Update()
     {
         if (!changing) return;
 
         elapsedSeconds += Time.deltaTime;
-        float t = transitionSeconds > 0f ? Mathf.Clamp01(elapsedSeconds / transitionSeconds) : 1f;
-        float eased = Mathf.SmoothStep(0f, 1f, t);   // starts and ends gently
+
+        float t = 1f; // 0 = before, 1 = after
+        if (transitionSeconds > 0f) t = Mathf.Clamp01(elapsedSeconds / transitionSeconds);
+        float eased = Mathf.SmoothStep(0f, 1f, t); // starts and ends gently
 
         SetBlend(eased);
 
@@ -113,14 +142,15 @@ public class EnvironmentChanger : MonoBehaviour
             RenderSettings.fogDensity = Mathf.Lerp(fogDensityBefore, fogDensityAfter, eased);
         }
 
-        if (t >= 1f)
+        if (t >= 1f) // finished
         {
             changing = false;
-            HasChanged = true;
-            onChangeFinished?.Invoke();
+            hasChanged = true;
+            if (onChangeFinished != null) onChangeFinished.Invoke();
         }
     }
 
+    // Sets the global shader number (if a name was given).
     private void SetBlend(float value)
     {
         if (!string.IsNullOrEmpty(globalBlendProperty)) Shader.SetGlobalFloat(globalBlendProperty, value);

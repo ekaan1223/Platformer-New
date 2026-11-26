@@ -1,13 +1,13 @@
-using System.Collections;
-using UnityEngine;
+using System.Collections; // gives us IEnumerator, for coroutines
+using UnityEngine;        // gives us access to Unity classes (Vector3, Mathf, Time, etc.)
 
-/// <summary>
-/// The boss winds up, locks onto the player's position, then dashes in a straight line.
-/// The direction is locked at the start of the dash, so the player can dodge sideways.
-/// It stops early if it runs into a wall.
-/// </summary>
-[CreateAssetMenu(menuName = "Boss/Moves/Charge", fileName = "Charge")]
-public class ChargeMove : BossMove
+// CHARGE MOVE
+// The boss winds up, locks onto the player's position, then dashes in a straight line.
+// The direction is locked at the start of the dash, so the player can dodge sideways.
+// It stops early if it runs into a wall.
+
+[CreateAssetMenu(menuName = "Boss/Moves/Charge", fileName = "Charge")] // adds the "Create > Boss > Moves > Charge" menu entry
+public class ChargeMove : BossMove // built on BossMove (gets its timing and Telegraph)
 {
     [Header("Charge")]
     [SerializeField, Min(0f)] private float damage = 1f;
@@ -18,31 +18,31 @@ public class ChargeMove : BossMove
 
     public override IEnumerator Perform(BossController boss)
     {
-        yield return Telegraph(boss);
+        yield return Telegraph(boss); // wind up first (the boss turns toward the player)
 
-        Vector3 direction = boss.DirectionToPlayerFlat();   // locked in NOW
-        float travelled = 0f;
-        bool hasHitPlayer = false;   // local variable on purpose: this asset is shared (see BossMove)
+        Vector3 direction = boss.DirectionToPlayerFlat(); // locked in NOW, so the player can dodge sideways
+        float travelled = 0f;                             // how far the boss has dashed so far
+        bool hasHitPlayer = false;                        // a local variable on purpose: this asset is shared (see BossMove)
 
         while (travelled < dashDistanceMeters)
         {
-            float step = Mathf.Min(dashSpeedMetersPerSecond * Time.deltaTime, dashDistanceMeters - travelled);
+            float step = Mathf.Min(dashSpeedMetersPerSecond * Time.deltaTime, dashDistanceMeters - travelled); // this frame's distance, never past the end
 
-            Vector3 before = boss.transform.position;
-            boss.Move(direction * step);
+            Vector3 before = boss.transform.position; // where we were before moving
+            boss.Move(direction * step);              // move (walls stop it)
 
-            Vector3 moved = boss.transform.position - before;
-            moved.y = 0f;
-            if (moved.magnitude < step * 0.25f) break;   // blocked by a wall, stop the charge
+            Vector3 moved = boss.transform.position - before; // how far we really got
+            moved.y = 0f;                                     // only sideways counts
+            if (moved.magnitude < step * 0.25f) break;        // we hardly moved: a wall is in the way, stop the charge
             travelled += step;
 
-            if (!hasHitPlayer && boss.IsPlayerTouching(hitPaddingMeters))
+            if (!hasHitPlayer && boss.IsPlayerTouching(hitPaddingMeters)) // ran into the player (only hurts once per charge)
             {
                 hasHitPlayer = true;
                 boss.DamagePlayer(damage, direction);
             }
 
-            yield return null;
+            yield return null; // wait one frame
         }
     }
 }

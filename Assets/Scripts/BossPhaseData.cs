@@ -1,14 +1,21 @@
-using UnityEngine;
+using UnityEngine; // gives us access to Unity classes (ScriptableObject, GameObject, Vector3, Mathf, etc.)
 
-/// <summary>How the boss gets its enemies into the fight.</summary>
+// BOSS PHASE DATA
+// One phase of the boss fight, saved as an asset (right-click > Create > Boss > Phase). Make one asset per phase
+// and drag them into BossController in order. Everything about a phase is tuned here, so you can swap moves,
+// waves and the arena level without touching code.
+// The values are private (only the Inspector changes them); BossController reads them through the
+// "get" properties at the bottom of each class.
+
+// How the boss gets its enemies into the fight.
 public enum EnemySpawnStyle
 {
     AtSpawnPoints,       // they just appear at the spawn points (or in a ring around the boss)
     ThrownTowardPlayer   // the boss lobs them in an arc so they land at / close to the player
 }
 
-/// <summary>How a phase spawns waves of enemies. Lives inside a BossPhaseData asset.</summary>
-[System.Serializable]
+// How a phase spawns waves of enemies. Lives inside a BossPhaseData asset (shown as a foldout in the Inspector).
+[System.Serializable] // makes Unity show it (and save it) inside the phase asset
 public class BossWaveSettings
 {
     [Tooltip("ON = the boss spawns waves of enemies during this phase.")]
@@ -35,27 +42,27 @@ public class BossWaveSettings
     [Tooltip("...and at most this far. Small = lands right next to you, big = lands in the general area.")]
     [SerializeField, Min(0f)] private float landMaxDistanceFromPlayerMeters = 1.2f;
 
-    public bool SpawnWaves => spawnWaves;
-    public GameObject[] EnemyPrefabs => enemyPrefabs;
-    public int EnemiesPerWave => enemiesPerWave;
-    public float FirstWaveDelaySeconds => firstWaveDelaySeconds;
-    public float SecondsBetweenWaves => secondsBetweenWaves;
-    public int MaxAliveEnemies => maxAliveEnemies;
-    public float SpawnStaggerSeconds => spawnStaggerSeconds;
-    public EnemySpawnStyle SpawnStyle => spawnStyle;
-    public Vector3 ThrowOriginLocalOffset => throwOriginLocalOffset;
-    public float ThrowFlightSeconds => throwFlightSeconds;
-    public float LandMinDistanceFromPlayerMeters => landMinDistanceFromPlayerMeters;
-    public float LandMaxDistanceFromPlayerMeters => Mathf.Max(landMaxDistanceFromPlayerMeters, landMinDistanceFromPlayerMeters);
+    public bool SpawnWaves { get { return spawnWaves; } }
+    public GameObject[] EnemyPrefabs { get { return enemyPrefabs; } }
+    public int EnemiesPerWave { get { return enemiesPerWave; } }
+    public float FirstWaveDelaySeconds { get { return firstWaveDelaySeconds; } }
+    public float SecondsBetweenWaves { get { return secondsBetweenWaves; } }
+    public int MaxAliveEnemies { get { return maxAliveEnemies; } }
+    public float SpawnStaggerSeconds { get { return spawnStaggerSeconds; } }
+    public EnemySpawnStyle SpawnStyle { get { return spawnStyle; } }
+    public Vector3 ThrowOriginLocalOffset { get { return throwOriginLocalOffset; } }
+    public float ThrowFlightSeconds { get { return throwFlightSeconds; } }
+    public float LandMinDistanceFromPlayerMeters { get { return landMinDistanceFromPlayerMeters; } }
+
+    // The max distance is never allowed to be smaller than the min distance.
+    public float LandMaxDistanceFromPlayerMeters
+    {
+        get { return Mathf.Max(landMaxDistanceFromPlayerMeters, landMinDistanceFromPlayerMeters); }
+    }
 }
 
-/// <summary>
-/// One phase of the boss fight as a data asset (Create > Boss > Phase). Make one asset per phase and
-/// drag them into the BossController in order. Everything about a phase is tuned here, so you can
-/// swap moves, waves and the arena level without touching code.
-/// </summary>
-[CreateAssetMenu(menuName = "Boss/Phase", fileName = "BossPhase")]
-public class BossPhaseData : ScriptableObject
+[CreateAssetMenu(menuName = "Boss/Phase", fileName = "BossPhase")] // adds the "Create > Boss > Phase" menu entry
+public class BossPhaseData : ScriptableObject // ScriptableObject = a script whose data is saved as its own asset file
 {
     [Header("When it starts")]
     [Tooltip("ON = starts when the boss's health drops to the fraction below. " +
@@ -74,7 +81,7 @@ public class BossPhaseData : ScriptableObject
 
     [Header("Moves")]
     [Tooltip("The attacks the boss picks from during this phase. Drag Boss Move assets in here. " +
-             "Empty = the boss does nothing (the arena phase). " +
+             "Empty = the boss does nothing (the arena phase and the finale). " +
              "A boss that must stand still should not have a Charge move.")]
     [SerializeField] private BossMove[] moves;
     [Tooltip("ON = random move each time (never the same one twice in a row). OFF = in list order.")]
@@ -95,15 +102,15 @@ public class BossPhaseData : ScriptableObject
              "and the NEXT phase starts. Needs a LevelMemoryTracker whose Small Memories Required is the number of memories.")]
     [SerializeField] private bool endsWhenMemoriesComplete;
 
-    public bool StartedByHealth => startedByHealth;
-    public float StartsAtHealthFraction => startsAtHealthFraction;
-    public bool Invulnerable => invulnerable;
-    public bool IsFinisher => isFinisher;
-    public BossMove[] Moves => moves;
-    public bool RandomOrder => randomOrder;
-    public float SecondsBetweenMoves => secondsBetweenMoves;
-    public bool ClearEnemiesOnStart => clearEnemiesOnStart;
-    public BossWaveSettings Waves => waves;
-    public GameObject ArenaLevelPrefab => arenaLevelPrefab;
-    public bool EndsWhenMemoriesComplete => endsWhenMemoriesComplete;
+    public bool StartedByHealth { get { return startedByHealth; } }
+    public float StartsAtHealthFraction { get { return startsAtHealthFraction; } }
+    public bool Invulnerable { get { return invulnerable; } }
+    public bool IsFinisher { get { return isFinisher; } }
+    public BossMove[] Moves { get { return moves; } }
+    public bool RandomOrder { get { return randomOrder; } }
+    public float SecondsBetweenMoves { get { return secondsBetweenMoves; } }
+    public bool ClearEnemiesOnStart { get { return clearEnemiesOnStart; } }
+    public BossWaveSettings Waves { get { return waves; } }
+    public GameObject ArenaLevelPrefab { get { return arenaLevelPrefab; } }
+    public bool EndsWhenMemoriesComplete { get { return endsWhenMemoriesComplete; } }
 }

@@ -4,7 +4,8 @@ using UnityEngine.InputSystem; // gives us InputAction, for the interact button
 
 // INTERACTABLE
 // Put this on any object the player should be able to interact with (a sign, a radio, a statue...).
-// Stand close to it and press the interact button (E / gamepad X by default): its interaction plays.
+// Stand close to it and press the interact button (E / gamepad Y by default): its interaction plays.
+// (Gamepad Y, not X: X swings the sword. Y is also the dialogue skip button, just like E is on the keyboard.)
 // WHAT happens is not in this script: drag an InteractionData asset into "Interaction" (it holds the sound and the text).
 // The texts are shown by the scene's DialoguePlayer, so the scene needs one (it already does if dialogue works there).
 //
@@ -28,7 +29,7 @@ public class Interactable : MonoBehaviour // MonoBehaviour = a script Unity can 
     [Min(0f)]                                // the Inspector never lets this go below 0
     public float leaveDistance = 0.5f;       // how far OUTSIDE the zone the player must go before they stop (meters). 0 = right at the edge
 
-    [Header("Input (empty = E / gamepad X)")]
+    [Header("Input (empty = E / gamepad Y)")]
     public InputAction interactAction = new InputAction("Interact", InputActionType.Button); // press to interact
 
     [Header("Events (hook animations / VFX here)")]
@@ -52,25 +53,35 @@ public class Interactable : MonoBehaviour // MonoBehaviour = a script Unity can 
         if (interactAction.bindings.Count == 0) // no keys set in the Inspector: give default ones
         {
             interactAction.AddBinding("<Keyboard>/e");         // E on the keyboard
-            interactAction.AddBinding("<Gamepad>/buttonWest"); // X on an Xbox pad, Square on a PlayStation pad
+            interactAction.AddBinding("<Gamepad>/buttonNorth"); // Y on an Xbox pad, Triangle on a PlayStation pad (X is the sword)
         }
     }
 
     // Start runs once, after every object's Awake, so the player surely exists by now.
     private void Start()
     {
-        PlayerController playerController = FindFirstObjectByType<PlayerController>(); // find the player in the scene
+        PlayerController playerController = PlayerController.Current; // the player of this scene
         if (playerController != null) player = playerController.GetComponent<CharacterController>(); // we need its body
         else Debug.LogWarning(name + ": there is no player in the scene, so it can't be interacted with.", this);
     }
 
-    private void OnEnable() => interactAction.Enable();   // start listening to the interact button
-    private void OnDisable() => interactAction.Disable(); // stop listening (the object was turned off or destroyed)
+    // OnEnable runs when the script is switched on: start listening to the interact button.
+    private void OnEnable()
+    {
+        interactAction.Enable();
+    }
+
+    // OnDisable runs when the script is switched off (or destroyed): stop listening.
+    private void OnDisable()
+    {
+        interactAction.Disable();
+    }
 
     // Update runs every frame.
     private void Update()
     {
         if (zone == null || player == null) return; // no zone or no player (e.g. it died): nothing to do
+        if (GamePause.IsMenuOpen) return;           // the pause menu is open: the button belongs to the menu
 
         Bounds body = player.bounds;         // the box around the player's body
         body.Expand(player.skinWidth * 4f);  // a little bigger: the player always stops a hair away from solid colliders (its "skin")
@@ -112,7 +123,7 @@ public class Interactable : MonoBehaviour // MonoBehaviour = a script Unity can 
             else Debug.LogWarning(name + ": there is no DialoguePlayer in the scene, so the text can't show.", this); // no dialogue UI
         }
 
-        onInteracted?.Invoke(); // tell anything hooked up in the Inspector ("?." = only if the list exists)
+        if (onInteracted != null) onInteracted.Invoke(); // tell anything hooked up in the Inspector
     }
 
     // The player just came close: show the prompt (if there is one and it can still be used).
@@ -140,11 +151,20 @@ public class Interactable : MonoBehaviour // MonoBehaviour = a script Unity can 
     }
 
     // True if this was a one-time interaction and it was already used.
-    private bool IsUsedUp() => interactOnlyOnce && hasInteracted;
+    private bool IsUsedUp()
+    {
+        return interactOnlyOnce && hasInteracted;
+    }
 
     // True if OUR prompt is the conversation on screen right now.
-    private bool PromptIsShowing() => prompt != null && DialoguePlayer.Current != null && DialoguePlayer.Current.CurrentDialogue == prompt;
+    private bool PromptIsShowing()
+    {
+        return prompt != null && DialoguePlayer.Current != null && DialoguePlayer.Current.CurrentDialogue == prompt;
+    }
 
     // True if some OTHER conversation (not our prompt) is on screen right now.
-    private bool OtherTextIsShowing() => DialoguePlayer.Current != null && DialoguePlayer.Current.IsPlaying && !PromptIsShowing();
+    private bool OtherTextIsShowing()
+    {
+        return DialoguePlayer.Current != null && DialoguePlayer.Current.IsPlaying && !PromptIsShowing();
+    }
 }

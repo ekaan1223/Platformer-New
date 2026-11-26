@@ -28,6 +28,7 @@ public class WeaponHitbox : MonoBehaviour // MonoBehaviour = a script Unity can 
     private bool isSwinging;                // true between StartSwing and StopSwing
     private Transform owner;                // who holds the weapon. Never hurt by their own weapon
     private List<IDamageable> hitThisSwing = new List<IDamageable>(); // who was already hurt in this swing
+    private Collider[] touchingBuffer = new Collider[16];             // reused for every check, so swinging creates no garbage
 
     // True while the blade can hurt. Other scripts can read it (for example to play a sound).
     public bool IsSwinging
@@ -73,22 +74,23 @@ public class WeaponHitbox : MonoBehaviour // MonoBehaviour = a script Unity can 
         halfSize = new Vector3(Mathf.Abs(halfSize.x), Mathf.Abs(halfSize.y), Mathf.Abs(halfSize.z)); // a negative scale must not make the box inside-out
 
         // Every solid collider inside the box. Triggers (like an enemy's head zone) are skipped.
-        Collider[] touching = Physics.OverlapBox(center, halfSize, transform.rotation, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+        // "NonAlloc" fills our ready-made list instead of making a new one every frame. count = how many it found.
+        int count = Physics.OverlapBoxNonAlloc(center, halfSize, touchingBuffer, transform.rotation, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
 
-        for (int i = 0; i < touching.Length; i++)
+        for (int i = 0; i < count; i++)
         {
-            Collider other = touching[i];
+            Collider other = touchingBuffer[i];
 
             if (owner != null && other.transform.IsChildOf(owner)) continue; // our own body: skip it
+            if (onlyHitPlayer && !PlayerController.IsPlayer(other)) continue; // enemy weapon: only the player counts (checked first, it's the cheapest)
 
             IDamageable target = other.GetComponentInParent<IDamageable>(); // the health script of what we touched
             if (target == null) continue;                                    // a wall, the floor...: nothing to hurt
             if (hitThisSwing.Contains(target)) continue;                     // already hurt in this swing
 
-            if (onlyHitPlayer && other.GetComponentInParent<PlayerController>() == null) continue; // enemy weapon: only the player counts
-
             // Push direction: from the weapon's holder toward the target, flat on the ground.
-            Vector3 from = owner != null ? owner.position : transform.position;
+            Vector3 from = transform.position;      // no holder: from the weapon itself
+            if (owner != null) from = owner.position; // from the holder
             Vector3 hitDirection = other.bounds.center - from;
             hitDirection.y = 0f;
             if (hitDirection.sqrMagnitude < 0.0001f) hitDirection = transform.forward; // right on top of each other: use the blade's direction
@@ -105,7 +107,8 @@ public class WeaponHitbox : MonoBehaviour // MonoBehaviour = a script Unity can 
         BoxCollider shape = GetComponent<BoxCollider>();
         if (shape == null) return;
 
-        Gizmos.color = isSwinging ? Color.red : Color.yellow;
+        Gizmos.color = Color.yellow;               // yellow: off
+        if (isSwinging) Gizmos.color = Color.red;  // red: swinging, can hurt
         Gizmos.matrix = transform.localToWorldMatrix; // draw in the weapon's own space, so the box turns with it
         Gizmos.DrawWireCube(shape.center, shape.size);
     }

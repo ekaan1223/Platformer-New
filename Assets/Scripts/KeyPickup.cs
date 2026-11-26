@@ -1,14 +1,14 @@
-using UnityEngine;
-using UnityEngine.Events;
+using UnityEngine;        // gives us access to Unity classes (MonoBehaviour, Collider, Renderer, etc.)
+using UnityEngine.Events; // gives us UnityEvent (the event lists you can fill in the Inspector)
 
-/// <summary>
-/// A collectible key. Walk into it and it goes into the player's KeyInventory.
-/// Which key it is = the Key Type asset you drag in. Same prefab, different asset = a different key.
-/// Needs a trigger collider (a SphereCollider is added and set to Is Trigger automatically).
-/// The player is recognised by having a KeyInventory, so no tag is needed.
-/// </summary>
-[RequireComponent(typeof(SphereCollider))]
-public class KeyPickup : MonoBehaviour
+// KEY PICKUP
+// A collectible key. Walk into it and it goes into the player's KeyInventory.
+// Which key it is = the Key Type asset you drag in. Same prefab, different asset = a different key.
+// Needs a trigger collider (a SphereCollider is added and set to Is Trigger automatically).
+// The player is recognised by having a KeyInventory, so no tag is needed.
+
+[RequireComponent(typeof(SphereCollider))] // Unity adds a SphereCollider automatically if the object has none
+public class KeyPickup : MonoBehaviour // MonoBehaviour = a script Unity can put on an object and call every frame
 {
     [Header("Key")]
     [Tooltip("Which key this is. Drag a Key Type asset here.")]
@@ -31,67 +31,75 @@ public class KeyPickup : MonoBehaviour
     [Header("Collecting")]
     [Tooltip("The key disappears at once, but the object stays this long so a sound can finish playing.")]
     [SerializeField, Min(0f)] private float destroyDelaySeconds = 0.5f;
+    [Tooltip("Print a message to the Console when picked up (only in the Editor, never in the built game).")]
     [SerializeField] private bool logMessages = true;
 
     [Header("Events (hook sound / VFX / UI here)")]
     [SerializeField] private UnityEvent onCollected;
 
-    private Collider[] colliders;
-    private Vector3 visualStartLocalPosition;
-    private float bobTimeOffset;
-    private bool collected;
+    private Collider[] colliders;              // our own colliders, switched off when collected
+    private Vector3 visualStartLocalPosition;  // where the model floats around
+    private float bobTimeOffset;               // a random start, so keys side by side don't bob in sync
+    private bool collected;                    // true once picked up
 
+    // Awake runs once, when the object is created.
     private void Awake()
     {
         colliders = GetComponents<Collider>();
-        foreach (Collider c in colliders) c.isTrigger = true;   // a pickup must never block the player
+        for (int i = 0; i < colliders.Length; i++) colliders[i].isTrigger = true; // a pickup must never block the player
 
         if (visual == null) visual = transform;
         visualStartLocalPosition = visual.localPosition;
-        bobTimeOffset = Random.value * Mathf.PI * 2f;           // keys placed side by side don't bob in sync
+        bobTimeOffset = Random.value * Mathf.PI * 2f;
 
-        if (keyType == null)
-            Debug.LogWarning($"{name}: no Key Type assigned, so this key does nothing.", this);
-        else if (tintWithKeyColor)
-            KeyColorTint.Apply(tintRenderers, gameObject, keyType.Color);
+        if (keyType == null) Debug.LogWarning(name + ": no Key Type assigned, so this key does nothing.", this);
+        else if (tintWithKeyColor) KeyColorTint.Apply(tintRenderers, gameObject, keyType.Color);
     }
 
+    // Update runs every frame: spin and float.
     private void Update()
     {
         if (collected) return;
 
-        if (spinDegreesPerSecond != 0f)
-            visual.Rotate(0f, spinDegreesPerSecond * Time.deltaTime, 0f, Space.Self);
+        if (spinDegreesPerSecond != 0f) visual.Rotate(0f, spinDegreesPerSecond * Time.deltaTime, 0f, Space.Self);
 
         if (bobHeightMeters > 0f)
         {
-            float offset = Mathf.Sin(Time.time * bobSpeed + bobTimeOffset) * bobHeightMeters;
+            float offset = Mathf.Sin(Time.time * bobSpeed + bobTimeOffset) * bobHeightMeters; // a smooth up-and-down wave
             visual.localPosition = visualStartLocalPosition + Vector3.up * offset;
         }
     }
 
+    // Unity calls this when something walks into the trigger.
     private void OnTriggerEnter(Collider other)
     {
         if (collected || keyType == null) return;
+        if (!PlayerController.IsPlayer(other)) return; // not the player (an enemy walked over it, for example): cheap check first
 
         KeyInventory inventory = other.GetComponentInParent<KeyInventory>();
-        if (inventory == null) return;   // not the player (an enemy walked over it, for example)
+        if (inventory == null) return; // the player has no KeyInventory
 
         collected = true;
-        foreach (Collider c in colliders) c.enabled = false;
-        foreach (Renderer r in GetComponentsInChildren<Renderer>()) r.enabled = false;
+        for (int i = 0; i < colliders.Length; i++) colliders[i].enabled = false;
+
+        Renderer[] renderers = GetComponentsInChildren<Renderer>(); // once, at the moment of collecting
+        for (int i = 0; i < renderers.Length; i++) renderers[i].enabled = false;
 
         inventory.Add(keyType, amount);
-        if (logMessages) Debug.Log($"Picked up {amount} x {keyType.DisplayName}. Now carrying {inventory.GetCount(keyType)}.", this);
+        if (logMessages && Application.isEditor)
+        {
+            Debug.Log("Picked up " + amount + " x " + keyType.DisplayName + ". Now carrying " + inventory.GetCount(keyType) + ".", this);
+        }
 
-        onCollected?.Invoke();
+        if (onCollected != null) onCollected.Invoke();
         Destroy(gameObject, destroyDelaySeconds);
     }
 
     // Reset() runs in the editor when the script is first added: sensible trigger defaults.
     private void Reset()
     {
-        if (TryGetComponent(out SphereCollider sphere))
+        SphereCollider sphere = GetComponent<SphereCollider>();
+        if (sphere != null)
         {
             sphere.isTrigger = true;
             sphere.radius = 0.25f;

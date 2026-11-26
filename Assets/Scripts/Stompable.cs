@@ -49,10 +49,8 @@ public class Stompable : MonoBehaviour // MonoBehaviour = a script Unity can put
             bounds.size.z * headWidthMultiplier / scale.z);
     }
 
-    /// <summary>
-    /// True if the player (their body's box) is stomping this enemy: feet on or above the head, or inside the head zone.
-    /// EnemyAI asks this before it hurts the player on touch, so a stomp never also hurts the player.
-    /// </summary>
+    // True if the player (their body's box) is stomping this enemy: feet on or above the head, or inside the head zone.
+    // EnemyAI asks this before it hurts the player on touch, so a stomp never also hurts the player.
     public bool IsBeingStomped(Bounds player)
     {
         if (!isActiveAndEnabled || body == null) return false;                       // switched off (the boss before its finale): no stomps

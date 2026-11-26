@@ -39,7 +39,6 @@ public class CameraAutoFollow : MonoBehaviour // MonoBehaviour = a script Unity 
     private void Awake()
     {
         if (player == null) player = GetComponentInParent<PlayerController>(); // the camera is a child of the player: look up the hierarchy
-        if (player == null) player = FindFirstObjectByType<PlayerController>(); // not under the player: search the whole scene
         if (orbit == null) orbit = GetComponent<CinemachineOrbitalFollow>();    // the orbit on this same object
 
         if (orbit == null) Debug.LogError(name + ": CameraAutoFollow needs a CinemachineOrbitalFollow on the same object.", this);
@@ -48,7 +47,8 @@ public class CameraAutoFollow : MonoBehaviour // MonoBehaviour = a script Unity 
     // Update runs every frame.
     private void Update()
     {
-        if (orbit == null || player == null) return; // missing pieces (or the player died and was removed): do nothing
+        if (player == null) player = PlayerController.Current; // not under the player: use the scene's player (no searching)
+        if (orbit == null || player == null) return; // missing pieces (or there is no player): do nothing
 
         float deltaTime = Time.deltaTime; // seconds since the last frame
         if (deltaTime <= 0f) return;      // the game is paused (e.g. a dialogue): nothing moves, so nothing to do

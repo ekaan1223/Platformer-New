@@ -6,7 +6,7 @@ using UnityEngine; // gives us access to Unity classes (MonoBehaviour, Collider,
 // The scene also needs ONE DialoguePlayer (the dialogue UI).
 
 [RequireComponent(typeof(BoxCollider))] // Unity adds a Box Collider automatically if the object has none
-public class DialogueTrigger : MonoBehaviour
+public class DialogueTrigger : MonoBehaviour // MonoBehaviour = a script Unity can put on an object
 {
     public DialogueData dialogue;   // the conversation to play
     public bool pauseGame = true;   // ON = the game freezes while the conversation plays. OFF = the player keeps playing
@@ -24,7 +24,7 @@ public class DialogueTrigger : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         if (playOnlyOnce && hasPlayed) return;                          // already played once: do nothing
-        if (other.GetComponentInParent<PlayerController>() == null) return; // not the player: ignore
+        if (!PlayerController.IsPlayer(other)) return;                  // not the player: ignore
 
         if (DialoguePlayer.Current == null) // no dialogue UI in the scene
         {

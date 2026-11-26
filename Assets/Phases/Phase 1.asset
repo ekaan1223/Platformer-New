@@ -15,7 +15,6 @@ MonoBehaviour:
   startsAtHealthFraction: 1
   invulnerable: 0
   moves:
-  - {fileID: 11400000, guid: 7087497f8e64e1d4098da562b3a26cbf, type: 2}
   - {fileID: 11400000, guid: 436189ee9db0bad43a157c6fd3446f08, type: 2}
   randomOrder: 1
   secondsBetweenMoves: 1
