@@ -177,6 +177,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private float ledgeLiftTargetFeetY;   // the height the feet are lifted to: the box's top + ledgeLiftExtraHeight
     private Vector3 ledgeLiftDirection;   // toward the box (flat, length 1)
     private float ledgeLiftStartTime;     // when the lift started, so a lift that can't finish gives up
+    private float lastLaunchTime = float.NegativeInfinity; // when the last jump / jump pad / stomp bounce happened. Ground snapping waits a moment after it, so it never pulls a launch back down
 
     // Jump
     private bool groundJumpAvailable;  // true after touching the ground; used up by the first jump
@@ -629,6 +630,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         isLedgeLifting = false;   // ...and a ledge lift (the jump takes over)
 
         VerticalVelocity = JumpSpeed(height);   // the upward speed needed to reach that height
+        lastLaunchTime = Time.time;             // ground snapping must leave this jump alone
         jumpPressedTime = float.NegativeInfinity; // the press is used up, so it can't jump twice
         jumpCutAvailable = true;                // letting go of the button may now shorten this jump
         lastJumpWasAirJump = airJump;           // so ChooseAnimation picks Jump or DoubleJump
@@ -1023,13 +1025,14 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     {
         if (!snapToGround || IsDead || isLedgeLifting) return false;
         if (VerticalVelocity > 0f) return false; // going up (jump, jump pad, bounce): never pull down
+        if (Time.time - lastLaunchTime < 0.3f) return false; // just jumped or got launched (jump pad, stomp bounce): leave it alone for a moment
 
         RaycastHit hit;
         if (!CastGround(groundSnapDistance, out hit)) return false; // no flat-enough ground close below: a real fall (or a ledge)
 
         CollisionFlags flags = controller.Move(Vector3.down * hit.distance); // the CharacterController stops by itself when the feet touch
         if ((flags & CollisionFlags.Below) != 0) touchedBelow = true;
-        return true;
+        return VerticalVelocity <= 0f; // a jump pad can fire while we move down onto it: then we are flying, not standing
     }
 
     // The height of the bottom of the capsule (the feet), in the world.
@@ -1083,6 +1086,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         if (IsDashing) EndDash();                 // a launch cancels a dash
         isLedgeLifting = false;                   // ...and a ledge lift (a jump pad or stomp bounce takes over)
         VerticalVelocity = JumpSpeed(heightMeters); // throw upward
+        lastLaunchTime = Time.time;                 // ground snapping must leave this launch alone
 
         if (setHorizontal) // the two-value Launch also replaces the sideways speed
         {
