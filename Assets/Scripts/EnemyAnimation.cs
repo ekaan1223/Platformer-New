@@ -8,6 +8,8 @@ using UnityEngine; // gives us access to Unity classes (MonoBehaviour, Animator,
 //   Speed  (Float)   - how fast the enemy is walking, in m/s. Read from its CharacterController every frame
 //   Attack (Trigger) - PlayAttack() fires it. Hook it to EnemyAI > On Player Hit
 //   Hit    (Trigger) - PlayHit() fires it. Hook it to Damageable > On Damaged
+//   Dead   (Bool)    - PlayDeath() turns it on. Hook it to Damageable > On Died (and give Damageable a Destroy Delay,
+//                      or the enemy vanishes before the death animation can play)
 
 [RequireComponent(typeof(CharacterController))] // the speed comes from the CharacterController EnemyAI moves
 public class EnemyAnimation : MonoBehaviour   // MonoBehaviour = a script Unity can put on an object
@@ -17,6 +19,7 @@ public class EnemyAnimation : MonoBehaviour   // MonoBehaviour = a script Unity 
     private static readonly int SpeedParameter = Animator.StringToHash("Speed");   // names turned into numbers once, so Update never works with strings
     private static readonly int AttackParameter = Animator.StringToHash("Attack");
     private static readonly int HitParameter = Animator.StringToHash("Hit");
+    private static readonly int DeadParameter = Animator.StringToHash("Dead");
 
     private CharacterController controller; // the enemy's body (found in Awake)
 
@@ -55,5 +58,15 @@ public class EnemyAnimation : MonoBehaviour   // MonoBehaviour = a script Unity 
     public void PlayHit()
     {
         if (animator != null) animator.SetTrigger(HitParameter);
+    }
+
+    // Plays the death. Public with no parameters, so Damageable's On Died event can call it from the Inspector.
+    // Dead is a Bool (not a Trigger) so the Animator stays dead: the Attack and Hit arrows check "Dead = false".
+    public void PlayDeath()
+    {
+        if (animator == null) return;
+        animator.ResetTrigger(HitParameter);    // the killing blow also fired Hit: forget it, death wins
+        animator.ResetTrigger(AttackParameter);
+        animator.SetBool(DeadParameter, true);
     }
 }

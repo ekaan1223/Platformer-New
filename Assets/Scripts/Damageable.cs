@@ -14,6 +14,8 @@ public class Damageable : MonoBehaviour, IDamageable
     [SerializeField] private bool logDamage = true;
     [Tooltip("Destroy this GameObject when health reaches 0.")]
     [SerializeField] private bool destroyOnDeath = true;
+    [Tooltip("Seconds to wait before destroying it, so a death animation can play. 0 = right away.")]
+    [SerializeField, Min(0f)] private float destroyDelaySeconds = 0f;
 
     [Header("Runtime (watch this drop while playing)")]
     [SerializeField] private float currentHealth;
@@ -38,6 +40,6 @@ public class Damageable : MonoBehaviour, IDamageable
         if (!IsDead) return;
 
         onDied?.Invoke();
-        if (destroyOnDeath) Destroy(gameObject);
+        if (destroyOnDeath) Destroy(gameObject, destroyDelaySeconds);
     }
 }

@@ -71,6 +71,7 @@ public class PlayerStomp : MonoBehaviour // MonoBehaviour = a script Unity can p
         if (Time.time - lastStompTime < stompCooldownSeconds) return;      // just stomped: ignore this extra touch
         if (hit.normal.y < minTopNormalY) return;                          // we hit its side, not its top
         if (player.VerticalVelocity > 0f) return;                          // still going up (jumping into it from below/side): not a stomp
+        if (player.IsGrounded) return;                                     // only from the air: walking or swinging the sword into it is not a stomp
 
         Stompable stompable = hit.collider.GetComponentInParent<Stompable>(); // look on the thing we hit, and its parents, for a Stompable
         if (stompable == null)                                             // not stompable (floor, box, wall top...)
@@ -89,10 +90,14 @@ public class PlayerStomp : MonoBehaviour // MonoBehaviour = a script Unity can p
     private void CheckHeadZone(Collider other)
     {
         if (player.VerticalVelocity > 0f) return;                          // still going up: not a stomp
+        if (player.IsGrounded) return;                                     // only from the air: standing next to it (or attacking it) is not a stomp
         if (Time.time - lastStompTime < stompCooldownSeconds) return;      // just stomped: ignore this extra touch
 
         Stompable stompable = other.GetComponentInParent<Stompable>();     // whose trigger is this?
         if (stompable == null || other != stompable.HeadZone) return;      // not a head zone (a ladder, a pickup...): ignore
+
+        Collider body = GetComponent<Collider>();                          // our body (the CharacterController)
+        if (body != null && body.bounds.min.y < other.bounds.min.y) return; // our feet are below the head zone: we brushed it with our body, not our feet
 
         Stomp(stompable);
     }

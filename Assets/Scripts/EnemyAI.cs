@@ -111,6 +111,8 @@ public class EnemyAI : MonoBehaviour
     [SerializeField, Min(1)] private int giveUpAfterStuckCount = 3;
 
     [Header("Touch Damage")]
+    [Tooltip("ON = touching the player hurts them (Goomba style). OFF = only a weapon hurts (EnemyWeaponAttack).")]
+    [SerializeField] private bool hurtOnTouch = true;
     [SerializeField, Min(0f)] private float contactDamage = 1f;
     [Tooltip("Seconds between hits, so one touch can't drain all health in a single frame.")]
     [SerializeField, Min(0f)] private float damageCooldownSeconds = 1f;
@@ -155,6 +157,9 @@ public class EnemyAI : MonoBehaviour
     private int stuckCount;
 
     public bool IsChasing => isChasing;
+
+    // Set by EnemyWeaponAttack while it swings: true = stand still and face the player. Not saved, not in the Inspector.
+    [System.NonSerialized] public bool HoldStill;
 
     /// <summary>
     /// Move this enemy's "home" (where its patrol path and chase leash are measured from).
@@ -207,9 +212,18 @@ public class EnemyAI : MonoBehaviour
 
         moveDirection = Vector3.MoveTowards(moveDirection, chosenDirection, steerResponsiveness * deltaTime); // smooth turns
         Vector3 look = isChasing && player != null ? player.position - transform.position : moveDirection; // chasing: face the player
+
+        if (HoldStill) // swinging its weapon (EnemyWeaponAttack): stand still, keep falling, face the player
+        {
+            moveDirection = Vector3.zero;
+            if (player != null) look = player.position - transform.position;
+            Move(Vector3.zero, look, deltaTime);
+            return; // no touch damage, and standing still on purpose is not "stuck"
+        }
+
         Move(moveDirection * speed + GetSeparation(), look, deltaTime);
 
-        TryDamagePlayer();
+        if (hurtOnTouch) TryDamagePlayer(); // off when the enemy hurts with a weapon instead (EnemyWeaponAttack)
         CheckStuck(goal, speed, deltaTime);
     }
 
@@ -413,8 +427,10 @@ public class EnemyAI : MonoBehaviour
 
         if (!avoidLedges && !avoidHazards) return true;
 
-        // Ground: a ray straight down, just past the front of the body.
-        Vector3 ahead = transform.position + direction * (body.extents.x + ledgeCheckForwardMeters);
+        // Ground: a ray straight down, just past the front of the body. Measured from the FEET (bottom of the body),
+        // so it works whether the enemy's pivot is at its feet or in the middle of its body.
+        Vector3 feet = new Vector3(body.center.x, body.min.y, body.center.z);
+        Vector3 ahead = feet + direction * (body.extents.x + ledgeCheckForwardMeters);
         float startHeight = body.extents.y; // start at half the body's height above the ground
         RaycastHit ground;
         bool hasGround = FirstHit(ahead + Vector3.up * startHeight, Vector3.down, startHeight + ledgeCheckDepthMeters, 0f, out ground);

@@ -57,7 +57,8 @@ public class Stompable : MonoBehaviour // MonoBehaviour = a script Unity can put
     {
         if (!isActiveAndEnabled || body == null) return false;                       // switched off (the boss before its finale): no stomps
         if (player.min.y >= body.bounds.max.y - topContactToleranceMeters) return true; // feet on top of the head
-        return HeadZone != null && HeadZone.bounds.Intersects(player);               // inside the head zone
+        return HeadZone != null && HeadZone.bounds.Intersects(player)                // inside the head zone...
+            && player.min.y >= HeadZone.bounds.min.y;                                 // ...with the FEET: a tall player standing next to it only brushes it with their body
     }
 
     // Scene view: the head zone as an orange box (before Play it shows where the zone WILL be).
