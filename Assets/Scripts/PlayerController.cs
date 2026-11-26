@@ -26,7 +26,7 @@ using UnityEngine.InputSystem;    // gives us access to the new Input System (In
 //
 // ANIMATOR SETUP: the states and the arrows between them are made by hand in the Animator window.
 // This script only sends these parameters; the arrows decide what plays. The names must match exactly:
-//   Floats:   Speed, VerticalSpeed
+//   Floats:   Speed, VerticalSpeed, MoveX, MoveY (walking direction compared to facing, for the Walk blend tree)
 //   Bools:    Grounded, Sprinting, Dashing, Climbing, Dead
 //   Triggers: Jump, DoubleJump, Attack, Hit
 // A parameter the Animator Controller doesn't have is skipped, with one warning when the game starts.
@@ -64,6 +64,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     [Header("Rotation")]
     public bool faceCameraDirection = true; // ON = while walking, face where the camera looks (S walks backwards). OFF = turn toward the walking direction
     public float turnSpeed = 720f;          // how fast the player turns (degrees per second)
+    public float bodyTurnAngle = 35f;       // camera-facing mode: walking diagonally (W+D, W+A, S+D, S+A) turns the model this many degrees toward the walking side. 0 = off
 
     [Header("Jump")]
     public float jumpHeight = 1f;           // how high a normal jump goes (meters)
@@ -216,10 +217,15 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     private static readonly int DoubleJumpParameter = Animator.StringToHash("DoubleJump");
     private static readonly int AttackParameter = Animator.StringToHash("Attack");
     private static readonly int HitParameter = Animator.StringToHash("Hit");
+    private static readonly int MoveXParameter = Animator.StringToHash("MoveX");
+    private static readonly int MoveYParameter = Animator.StringToHash("MoveY");
     private static readonly string[] ParameterNames = // only used for the warning in FindAnimatorParameters
     {
-        "Speed", "VerticalSpeed", "Grounded", "Sprinting", "Dashing", "Climbing", "Dead", "Jump", "DoubleJump", "Attack", "Hit"
+        "Speed", "VerticalSpeed", "Grounded", "Sprinting", "Dashing", "Climbing", "Dead", "Jump", "DoubleJump", "Attack", "Hit", "MoveX", "MoveY"
     };
+    private Vector2 moveBlend = Vector2.up; // walking direction compared to facing (x = A/D, y = W/S), smoothed. Sent as MoveX / MoveY
+    private float bodyYawAmount;            // -1..1, how much of bodyTurnAngle the model is turned right now (smoothed)
+    private Quaternion modelBaseRotation = Quaternion.identity; // the model's own local rotation at start; bodyTurnAngle is added on top of it
     private readonly System.Collections.Generic.HashSet<int> animatorParameters = new System.Collections.Generic.HashSet<int>(); // the parameters the Animator Controller really has (filled in Start)
 
     // Which move we are doing, used to pick its sound. Every name is turned into a number ONCE in Start.
@@ -729,6 +735,25 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         SetAnimatorBool(DashingParameter, IsDashing);
         SetAnimatorBool(ClimbingParameter, IsClimbing);
         SetAnimatorBool(DeadParameter, IsDead);
+
+        // MoveX / MoveY: which way we walk compared to where we face, for the Walk blend tree:
+        // W = forward, S = walking backwards, A / D = strafe, W+A / W+D = turning walk.
+        // In the other rotation mode the player always faces where it walks, so it is always "forward".
+        bool canTurnBody = !IsDead && !IsDashing && !IsClimbing && !rotationLocked && IsGrounded && hasMoveInput;
+        if (hasMoveInput) // standing still keeps the last direction, so stopping doesn't flash a different walk
+        {
+            Vector2 targetMove = faceCameraDirection ? Vector2.ClampMagnitude(moveInput, 1f) : Vector2.up;
+            moveBlend = Vector2.MoveTowards(moveBlend, targetMove, 4f * Time.deltaTime); // smoothed, so tapping keys doesn't snap the pose
+        }
+        SetAnimatorFloat(MoveXParameter, moveBlend.x);
+        SetAnimatorFloat(MoveYParameter, moveBlend.y);
+
+        // Diagonals (W+A, W+D, S+A, S+D) also turn the model a bit toward the walking side; straight A / D use the strafe clips instead.
+        // Walking backwards flips it, so S+D turns the body so its back points down-right, where we are going.
+        float targetYaw = canTurnBody && faceCameraDirection ? Mathf.Clamp(2f * moveBlend.x * moveBlend.y, -1f, 1f) : 0f;
+        bodyYawAmount = Mathf.MoveTowards(bodyYawAmount, targetYaw, 4f * Time.deltaTime);
+        if (animator.transform != transform)
+            animator.transform.localRotation = modelBaseRotation * Quaternion.Euler(0f, bodyYawAmount * bodyTurnAngle, 0f);
     }
 
     // These four skip a parameter the Animator Controller doesn't have, instead of filling the Console with warnings every frame.
@@ -1173,6 +1198,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         if (animatorController != null) animator.runtimeAnimatorController = animatorController; // put our controller on it, if one was given
 
         animator.applyRootMotion = false; // this script moves the player; if the animation moved it too, the two would fight
+        modelBaseRotation = animator.transform.localRotation; // remember the model's own rotation, so the body turn (UpdateAnimation) adds to it
     }
 
     // Gives each button default keys, but only if none were set in the Inspector. Called in Awake.
