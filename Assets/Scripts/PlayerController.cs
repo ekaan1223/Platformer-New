@@ -105,6 +105,7 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     [Header("Smooth Movement (untick a box to switch that fix off)")]
     public bool snapToGround = true;         // ON = small bumps, seams between colliders, rough mesh colliders and slopes keep the feet on the ground instead of hopping into the air for a moment
     public float groundSnapDistance = 0.1f;  // the biggest drop (meters) that is followed down while walking. Bigger drops are a real fall
+    public bool slideAlongWalls = true;      // ON = after bumping a wall or the side of a box, the speed pushing INTO it is dropped, so the player glides along it instead of grinding against it
 
     [Header("Animation")]
     public float idleSpeedThreshold = 0.1f;  // below this speed (m/s) on the ground the Idle sound plays
@@ -475,6 +476,14 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         // NOTE: while Move runs, Unity calls OnControllerColliderHit (below, and in PlayerStomp) for everything we touch.
 
         touchedBelow = (flags & CollisionFlags.Below) != 0; // something is under us (real ground OR just an edge); UpdateGrounded decides which
+
+        // Bumped into a wall: forget the part of our speed that pushes INTO it (keep the part along it).
+        // Otherwise we keep "pressing" on the wall, grind on the seams between boxes, and shoot off at full speed when the wall ends.
+        if (slideAlongWalls && touchedWall && !IsDashing && !isLedgeLifting)
+        {
+            float speedIntoWall = Vector3.Dot(HorizontalVelocity, wallNormal); // negative = moving toward the wall
+            if (speedIntoWall < 0f) HorizontalVelocity -= wallNormal * speedIntoWall;
+        }
 
         if (hitCeiling && VerticalVelocity > 0f) VerticalVelocity = 0f; // bonked our head on a real ceiling: stop going up so we fall right away
         if (hitCeiling) isLedgeLifting = false;                          // ...and a ledge lift can't go on through it either
