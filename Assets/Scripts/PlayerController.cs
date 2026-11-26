@@ -102,6 +102,10 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     public float ledgeLiftSpeed = 3f;            // how fast the player rises up the side of the box (m/s). It slows down at the end, so it never goes higher than the top
     public float ledgeLiftForwardSpeed = 1.5f;   // while being lifted, the player moves toward the box at least this fast, so they land on top (m/s)
 
+    [Header("Smooth Movement (untick a box to switch that fix off)")]
+    public bool snapToGround = true;         // ON = small bumps, seams between colliders, rough mesh colliders and slopes keep the feet on the ground instead of hopping into the air for a moment
+    public float groundSnapDistance = 0.1f;  // the biggest drop (meters) that is followed down while walking. Bigger drops are a real fall
+
     [Header("Animation")]
     public float idleSpeedThreshold = 0.1f;  // below this speed (m/s) on the ground the Idle sound plays
     public float hitAnimationSeconds = 0.4f; // how long the Hit sound takes priority over the others after taking damage
@@ -513,6 +517,10 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         // While moving upward we are never grounded (otherwise we could jump again right after jumping).
         // || stops early: if the contact already says "ground", the extra ground probe (CastGround) is skipped. && does the same for the first part.
         IsGrounded = VerticalVelocity <= 0.01f && (standingOnContact || CastGround(0f));
+
+        // We were on the ground last frame and now there's a tiny gap under us (a bump, a seam, a downhill slope)?
+        // Pull the feet back down onto the ground instead of hopping into the air for a frame.
+        if (!IsGrounded && wasGrounded && TrySnapToGround()) IsGrounded = true;
 
         // EDGE CHECK: we touch something below, but it doesn't count as ground -> we're hanging on a corner.
         // The CharacterController won't slide off by itself, so without this the player would get stuck there.
@@ -999,6 +1007,22 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
         lastLedgeLiftTime = Time.time;
     }
 
+    // Walking over a bump or down a slope can leave a tiny gap under the feet for one frame. This moves the player down
+    // onto the ground below (at most groundSnapDistance), so they stay grounded. Called by UpdateGrounded.
+    // Returns true if the player is standing on the ground again.
+    private bool TrySnapToGround()
+    {
+        if (!snapToGround || IsDead || isLedgeLifting) return false;
+        if (VerticalVelocity > 0f) return false; // going up (jump, jump pad, bounce): never pull down
+
+        RaycastHit hit;
+        if (!CastGround(groundSnapDistance, out hit)) return false; // no flat-enough ground close below: a real fall (or a ledge)
+
+        CollisionFlags flags = controller.Move(Vector3.down * hit.distance); // the CharacterController stops by itself when the feet touch
+        if ((flags & CollisionFlags.Below) != 0) touchedBelow = true;
+        return true;
+    }
+
     // The height of the bottom of the capsule (the feet), in the world.
     private float FeetHeight()
     {
@@ -1068,6 +1092,13 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
     // This is the only physics query this script does each frame.
     private bool CastGround(float extraDistance)
     {
+        RaycastHit hit;
+        return CastGround(extraDistance, out hit);
+    }
+
+    // Same as above, but also gives back what the ball hit (TrySnapToGround needs how far away it is).
+    private bool CastGround(float extraDistance, out RaycastHit hit)
+    {
         // The CharacterController's size grows with the object's scale, so the ball must grow too.
         float scale = transform.lossyScale.y;
         float radius = controller.radius * scale;   // the capsule's real radius
@@ -1079,7 +1110,6 @@ public class PlayerController : MonoBehaviour   // MonoBehaviour = a script Unit
 
         float distance = (radius - castRadius) + controller.skinWidth * scale + groundCheckDistance + extraDistance; // how far down to look
 
-        RaycastHit hit; // filled with what the ball hit
         bool hitSomething = Physics.SphereCast(start, castRadius, Vector3.down, out hit, distance, groundMask, QueryTriggerInteraction.Ignore); // triggers (pickups, zones) are ignored
         if (!hitSomething) return false; // nothing below us
 
